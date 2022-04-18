@@ -38,6 +38,8 @@ pub mod my_psp22 {
         pub tax_rate_e18: u128,
         pub tax_last_block: u128,
         pub tax_denom_e18: u128,
+
+        pub minters: Mapping<AccountId, bool>,
     }
 
     impl MyStable {
@@ -71,6 +73,13 @@ pub mod my_psp22 {
             if is_untaxed != set_to {
                 self._switch_is_untaxed(account, is_untaxed);
             }
+            Ok(())
+        }
+
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        pub fn set_minter(&mut self, account: AccountId, set_to: bool) -> Result<(), OwnableError> {
+            self.minters.insert(&account, &set_to);
             Ok(())
         }
 
