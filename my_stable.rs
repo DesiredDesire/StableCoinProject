@@ -3,6 +3,7 @@
 
 #[brush::contract]
 pub mod my_psp22 {
+    use brush::contracts::psp22::extensions::burnable::*;
     use brush::contracts::psp22::extensions::mintable::*;
     use brush::{
         contracts::ownable::*,
@@ -179,16 +180,16 @@ pub mod my_psp22 {
     impl PSP22Mintable for MyStable {
         #[ink(message)]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            if (self.admins.get(self._caller()).unwrap_or(false)) {
+            if self.admins.get(self._caller()).unwrap_or(false) {
                 return Err(PSP22::MissingRole);
             }
             self._mint(account, amount)
         }
     }
-    impl PSP22MBurnable for MyStable {
+    impl PSP22Burnable for MyStable {
         #[ink(message)]
         fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            if (self.admins.get(self._caller()).unwrap_or(false)) {
+            if self.admins.get(self._caller()).unwrap_or(false) {
                 return Err(PSP22::MissingRole);
             }
             self._mint(account, amount)
