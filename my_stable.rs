@@ -5,6 +5,7 @@
 pub mod my_psp22 {
 
     use brush::{
+        contracts::access_control::*,
         contracts::ownable::*,
         contracts::psp22::extensions::burnable::*,
         contracts::psp22::extensions::metadata::*,
@@ -22,12 +23,16 @@ pub mod my_psp22 {
     const E18: u128 = 10 ^ 18;
 
     #[ink(storage)]
-    #[derive(Default, OwnableStorage, SpreadAllocate, PSP22MetadataStorage)]
+    #[derive(
+        Default, OwnableStorage, SpreadAllocate, PSP22MetadataStorage, AccessControlStorage,
+    )]
     pub struct MyStable {
         #[OwnableStorageField]
         ownable: OwnableData,
         #[PSP22MetadataStorageField]
         metadata: PSP22MetadataData,
+        #[AccessControlStorageField]
+        access: AccessControlData,
 
         pub supply: Balance,
         pub allowances: Mapping<(AccountId, AccountId), Balance>,
@@ -44,9 +49,16 @@ pub mod my_psp22 {
         pub tax_rate_e18: u128,
         pub tax_last_block: u128,
         pub tax_denom_e18: u128,
-
-        pub admins: Mapping<AccountId, bool>,
     }
+
+    impl Ownable for MyStable {}
+
+    const MINTER: RoleType = ink_lang::selector_id!("MINTER");
+    const BURNER: RoleType = ink_lang::selector_id!("BURNER");
+    const SETTER: RoleType = ink_lang::selector_id!("SETTER");
+
+    impl AccessControl for MyStable {}
+    impl AccessControlInternal for MyStable {}
 
     impl PSP22 for MyStable {
         #[ink(message)]
@@ -139,14 +151,14 @@ pub mod my_psp22 {
 
     impl PSP22Mintable for MyStable {
         #[ink(message)]
-        #[modifiers(only_owner)]
+        #[modifiers(only_role(MINTER))]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
             self._mint(account, amount)
         }
     }
     impl PSP22Burnable for MyStable {
         #[ink(message)]
-        #[modifiers(only_owner)]
+        #[modifiers(only_role(BURNER))]
         fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
             self._mint(account, amount)
         }
@@ -164,6 +176,7 @@ pub mod my_psp22 {
                 // ownable
                 let caller = Self::env().caller();
                 instance._init_with_owner(caller);
+                instance._init_with_admin(caller);
                 // TaxedCoinData
                 instance.tax_interest_update_period = 3600;
                 instance.tax_interest_applied = 0;
@@ -182,13 +195,20 @@ pub mod my_psp22 {
         //     self.tax_denom_e18 = E18;
         // }
 
+        fn _block_number(&self) -> u128 {
+            self.env().block_number() as u128
+        }
+        fn _caller(&self) -> AccountId {
+            self.env().caller()
+        }
+
         #[ink(message)]
-        #[modifiers(only_owner)]
+        #[modifiers(only_role(SETTER))]
         pub fn set_is_untaxed(
             &mut self,
             account: AccountId,
             set_to: bool,
-        ) -> Result<(), OwnableError> {
+        ) -> Result<(), AccessControlError> {
             let is_untaxed: bool = self.is_untaxed.get(account).unwrap_or_default();
             if is_untaxed != set_to {
                 self._switch_is_untaxed(account, is_untaxed);
@@ -198,18 +218,27 @@ pub mod my_psp22 {
 
         #[ink(message)]
         #[modifiers(only_owner)]
-        pub fn set_admin(&mut self, account: AccountId, set_to: bool) -> Result<(), OwnableError> {
-            self.admins.insert(&account, &set_to);
+        pub fn set_role_admin(
+            &mut self,
+            role: RoleType,
+            new_admin: RoleType,
+        ) -> Result<(), PSP22Error> {
+            self._set_role_admin(role, new_admin);
             Ok(())
         }
 
-        fn _block_number(&self) -> u128 {
-            self.env().block_number() as u128
-        }
-        fn _caller(&self) -> AccountId {
-            self.env().caller()
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        pub fn setup_role(
+            &mut self,
+            role: RoleType,
+            new_member: AccountId,
+        ) -> Result<(), OwnableError> {
+            self._setup_role(role, new_member);
+            Ok(())
         }
     }
+
     pub trait PSP22Internal {
         fn _balance_of(&mut self, owner: &AccountId) -> Balance;
         fn _balance_of_view(&self, owner: &AccountId) -> Balance;
@@ -428,39 +457,6 @@ pub mod my_psp22 {
             Ok(())
         }
     }
-
-    pub trait MyStableOwner {
-        fn set_is_untaxed(&mut self, account: AccountId, set_to: bool) -> Result<(), OwnableError>;
-    }
-
-    // impl MyStableOwner for MyStable {
-    //     #[ink(message)]
-    //     #[modifiers(only_owner)]
-    //     fn set_is_untaxed(&mut self, account: AccountId, set_to: bool) -> Result<(), OwnableError> {
-    //         let is_untaxed: bool = self.is_untaxed.get(account).unwrap_or_default();
-    //         if is_untaxed == set_to {
-    //             return Ok(());
-    //         }
-    //         if is_untaxed {
-    //             let untaxed_balance = self.untaxed_balances.get(account).unwrap_or_default();
-    //             let taxed_balance = untaxed_balance * self._tax_denom();
-    //             self.taxed_balances.insert(&account, &taxed_balance);
-    //             self.untaxed_balances.insert(&account, &0);
-    //             self.taxed_supply += taxed_balance;
-    //             self.untaxed_supply -= untaxed_balance;
-    //             self.is_untaxed.insert(&account, &set_to)
-    //         } else {
-    //             let taxed_balance = self.taxed_balances.get(account).unwrap_or_default();
-    //             let untaxed_balance = taxed_balance / self._tax_denom();
-    //             self.untaxed_balances.insert(&account, &untaxed_balance);
-    //             self.taxed_balances.insert(&account, &0);
-    //             self.taxed_supply -= taxed_balance;
-    //             self.untaxed_supply += untaxed_balance;
-    //             self.is_untaxed.insert(&account, &set_to)
-    //         }
-    //         Ok(())
-    //     }
-    // }
 
     pub trait MyStableMath {}
     impl MyStableMath for MyStable {}
