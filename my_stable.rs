@@ -7,6 +7,7 @@ pub mod my_psp22 {
     use brush::{
         contracts::ownable::*,
         contracts::psp22::extensions::burnable::*,
+        contracts::psp22::extensions::metadata::*,
         contracts::psp22::extensions::mintable::*,
         modifiers,
         traits::{AccountIdExt, Flush},
@@ -21,10 +22,12 @@ pub mod my_psp22 {
     const E18: u128 = 10 ^ 18;
 
     #[ink(storage)]
-    #[derive(Default, OwnableStorage, SpreadAllocate)]
+    #[derive(Default, OwnableStorage, SpreadAllocate, PSP22MetadataStorage)]
     pub struct MyStable {
         #[OwnableStorageField]
         ownable: OwnableData,
+        #[PSP22MetadataStorageField]
+        metadata: PSP22MetadataData,
 
         pub supply: Balance,
         pub allowances: Mapping<(AccountId, AccountId), Balance>,
@@ -148,21 +151,36 @@ pub mod my_psp22 {
             self._mint(account, amount)
         }
     }
+    impl PSP22Metadata for MyStable {}
 
     impl MyStable {
         #[ink(constructor)]
-        pub fn new() -> Self {
-            ink_lang::codegen::initialize_contract(|instance: &mut Self| Self::new_init(instance))
+        pub fn new(name: Option<String>, symbol: Option<String>, decimal: u8) -> Self {
+            ink_lang::codegen::initialize_contract(|instance: &mut Self| {
+                // metadata
+                instance.metadata.name = name;
+                instance.metadata.symbol = symbol;
+                instance.metadata.decimals = decimal;
+                // ownable
+                let caller = Self::env().caller();
+                instance._init_with_owner(caller);
+                // TaxedCoinData
+                instance.tax_interest_update_period = 3600;
+                instance.tax_interest_applied = 0;
+                instance.tax_rate_e18 = 1000001000000000000;
+                instance.tax_last_block = Self::env().block_number() as u128;
+                instance.tax_denom_e18 = E18;
+            })
         }
-        fn new_init(&mut self) {
-            let caller = Self::env().caller();
-            self._init_with_owner(caller);
-            self.tax_interest_update_period = 3600;
-            self.tax_interest_applied = 0;
-            self.tax_rate_e18 = 1000001000000000000;
-            self.tax_last_block = Self::env().block_number() as u128;
-            self.tax_denom_e18 = E18;
-        }
+        // fn new_init(&mut self) {
+        //     let caller = Self::env().caller();
+        //     self._init_with_owner(caller);
+        //     self.tax_interest_update_period = 3600;
+        //     self.tax_interest_applied = 0;
+        //     self.tax_rate_e18 = 1000001000000000000;
+        //     self.tax_last_block = Self::env().block_number() as u128;
+        //     self.tax_denom_e18 = E18;
+        // }
 
         #[ink(message)]
         #[modifiers(only_owner)]
