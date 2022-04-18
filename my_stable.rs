@@ -5,7 +5,6 @@
 pub mod my_psp22 {
 
     use brush::{
-        contracts::access_control::*,
         contracts::ownable::*,
         contracts::psp22::extensions::burnable::*,
         contracts::psp22::extensions::mintable::*,
@@ -22,12 +21,10 @@ pub mod my_psp22 {
     const E18: u128 = 10 ^ 18;
 
     #[ink(storage)]
-    #[derive(Default, OwnableStorage, SpreadAllocate, AccessControlStorage)]
+    #[derive(Default, OwnableStorage, SpreadAllocate)]
     pub struct MyStable {
         #[OwnableStorageField]
         ownable: OwnableData,
-        #[AccessControlStorageField]
-        access: AccessControlData,
 
         pub supply: Balance,
         pub allowances: Mapping<(AccountId, AccountId), Balance>,
@@ -48,8 +45,6 @@ pub mod my_psp22 {
         pub admins: Mapping<AccountId, bool>,
     }
 
-    impl AccessControl for MyAccessControl {}
-
     impl PSP22 for MyStable {
         #[ink(message)]
         fn total_supply(&self) -> Balance {
@@ -58,7 +53,7 @@ pub mod my_psp22 {
 
         #[ink(message)]
         fn balance_of(&self, owner: AccountId) -> Balance {
-            self._balance_of(&owner)
+            self._balance_of_view(&owner)
         }
 
         #[ink(message)]
@@ -141,19 +136,15 @@ pub mod my_psp22 {
 
     impl PSP22Mintable for MyStable {
         #[ink(message)]
+        #[modifiers(only_owner)]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            if self.admins.get(self._caller()).unwrap_or(false) {
-                return Err(AccessControlError::MissingRole);
-            }
             self._mint(account, amount)
         }
     }
     impl PSP22Burnable for MyStable {
         #[ink(message)]
+        #[modifiers(only_owner)]
         fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            if self.admins.get(self._caller()).unwrap_or(false) {
-                return Err(PSP22Error::MissingRole);
-            }
             self._mint(account, amount)
         }
     }
@@ -171,11 +162,6 @@ pub mod my_psp22 {
             self.tax_rate_e18 = 1000001000000000000;
             self.tax_last_block = Self::env().block_number() as u128;
             self.tax_denom_e18 = E18;
-        }
-
-        #[ink(message)]
-        pub fn balance_of(&mut self, of: AccountId) -> Balance {
-            self.untaxed_balances.get(of).unwrap_or(0)
         }
 
         #[ink(message)]
@@ -403,7 +389,7 @@ pub mod my_psp22 {
                 return Err(PSP22Error::ZeroRecipientAddress);
             }
 
-            let mut from_balance = self.balance_of(account);
+            let mut from_balance = self._balance_of(&account);
 
             if from_balance < amount {
                 return Err(PSP22Error::InsufficientBalance);
