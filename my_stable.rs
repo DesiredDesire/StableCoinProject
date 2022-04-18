@@ -3,10 +3,12 @@
 
 #[brush::contract]
 pub mod my_psp22 {
-    use brush::contracts::psp22::extensions::burnable::*;
-    use brush::contracts::psp22::extensions::mintable::*;
+
     use brush::{
+        contracts::access_control::*,
         contracts::ownable::*,
+        contracts::psp22::extensions::burnable::*,
+        contracts::psp22::extensions::mintable::*,
         modifiers,
         traits::{AccountIdExt, Flush},
     };
@@ -20,10 +22,13 @@ pub mod my_psp22 {
     const E18: u128 = 10 ^ 18;
 
     #[ink(storage)]
-    #[derive(Default, OwnableStorage, SpreadAllocate)]
+    #[derive(Default, OwnableStorage, SpreadAllocate, AccessControlStorage)]
     pub struct MyStable {
         #[OwnableStorageField]
         ownable: OwnableData,
+        #[AccessControlStorageField]
+        access: AccessControlData,
+
         pub supply: Balance,
         pub allowances: Mapping<(AccountId, AccountId), Balance>,
 
@@ -41,6 +46,116 @@ pub mod my_psp22 {
         pub tax_denom_e18: u128,
 
         pub admins: Mapping<AccountId, bool>,
+    }
+
+    impl AccessControl for MyAccessControl {}
+
+    impl PSP22 for MyStable {
+        #[ink(message)]
+        fn total_supply(&self) -> Balance {
+            self.supply.clone()
+        }
+
+        #[ink(message)]
+        fn balance_of(&self, owner: AccountId) -> Balance {
+            self._balance_of(&owner)
+        }
+
+        #[ink(message)]
+        fn allowance(&self, owner: AccountId, spender: AccountId) -> Balance {
+            self.allowances.get((&owner, &spender)).unwrap_or(0)
+        }
+
+        #[ink(message)]
+        fn transfer(
+            &mut self,
+            to: AccountId,
+            value: Balance,
+            data: Vec<u8>,
+        ) -> Result<(), PSP22Error> {
+            //let from = Self::env().caller();
+            let from = self._caller();
+            self._transfer_from_to(from, to, value, data)?;
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn transfer_from(
+            &mut self,
+            from: AccountId,
+            to: AccountId,
+            value: Balance,
+            data: Vec<u8>,
+        ) -> Result<(), PSP22Error> {
+            // let caller = Self::env().caller();
+            let caller = self._caller();
+            let allowance = self.allowance(from, caller);
+
+            if allowance < value {
+                return Err(PSP22Error::InsufficientAllowance);
+            }
+
+            self._transfer_from_to(from, to, value, data)?;
+            self._approve_from_to(from, caller, allowance - value)?;
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn approve(&mut self, spender: AccountId, value: Balance) -> Result<(), PSP22Error> {
+            // let owner = Self::env().caller();
+            let owner = self._caller();
+            self._approve_from_to(owner, spender, value)?;
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn increase_allowance(
+            &mut self,
+            spender: AccountId,
+            delta_value: Balance,
+        ) -> Result<(), PSP22Error> {
+            // let owner = Self::env().caller();
+            let owner = self._caller();
+            self._approve_from_to(owner, spender, self.allowance(owner, spender) + delta_value)?;
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn decrease_allowance(
+            &mut self,
+            spender: AccountId,
+            delta_value: Balance,
+        ) -> Result<(), PSP22Error> {
+            // let owner = Self::env().caller();
+            let owner = self._caller();
+            let allowance = self.allowance(owner, spender);
+
+            if allowance < delta_value {
+                return Err(PSP22Error::InsufficientAllowance);
+            }
+
+            self._approve_from_to(owner, spender, allowance - delta_value)?;
+            Ok(())
+        }
+    }
+
+    impl PSP22Mintable for MyStable {
+        #[ink(message)]
+        fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
+            if self.admins.get(self._caller()).unwrap_or(false) {
+                return Err(AccessControlError::MissingRole);
+            }
+            self._mint(account, amount)
+        }
+    }
+    impl PSP22Burnable for MyStable {
+        #[ink(message)]
+        fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
+            if self.admins.get(self._caller()).unwrap_or(false) {
+                return Err(PSP22Error::MissingRole);
+            }
+            self._mint(account, amount)
+        }
     }
 
     impl MyStable {
@@ -91,111 +206,6 @@ pub mod my_psp22 {
             self.env().caller()
         }
     }
-
-    // impl PSP22 for MyStable {
-    //     default fn total_supply(&self) -> Balance {
-    //         self.supply.clone()
-    //     }
-
-    //     default fn balance_of(&self, owner: AccountId) -> Balance {
-    //         self._balance_of(&owner)
-    //     }
-
-    //     default fn allowance(&self, owner: AccountId, spender: AccountId) -> Balance {
-    //         self.allowances.get((&owner, &spender)).unwrap_or(0)
-    //     }
-
-    //     default fn transfer(
-    //         &mut self,
-    //         to: AccountId,
-    //         value: Balance,
-    //         data: Vec<u8>,
-    //     ) -> Result<(), PSP22Error> {
-    //         //let from = Self::env().caller();
-    //         let from = self._caller();
-    //         self._transfer_from_to(from, to, value, data)?;
-    //         Ok(())
-    //     }
-
-    //     default fn transfer_from(
-    //         &mut self,
-    //         from: AccountId,
-    //         to: AccountId,
-    //         value: Balance,
-    //         data: Vec<u8>,
-    //     ) -> Result<(), PSP22Error> {
-    //         // let caller = Self::env().caller();
-    //         let caller = self._caller();
-    //         let allowance = self.allowance(from, caller);
-
-    //         if allowance < value {
-    //             return Err(PSP22Error::InsufficientAllowance);
-    //         }
-
-    //         self._transfer_from_to(from, to, value, data)?;
-    //         self._approve_from_to(from, caller, allowance - value)?;
-    //         Ok(())
-    //     }
-
-    //     default fn approve(
-    //         &mut self,
-    //         spender: AccountId,
-    //         value: Balance,
-    //     ) -> Result<(), PSP22Error> {
-    //         // let owner = Self::env().caller();
-    //         let owner = self._caller();
-    //         self._approve_from_to(owner, spender, value)?;
-    //         Ok(())
-    //     }
-
-    //     default fn increase_allowance(
-    //         &mut self,
-    //         spender: AccountId,
-    //         delta_value: Balance,
-    //     ) -> Result<(), PSP22Error> {
-    //         // let owner = Self::env().caller();
-    //         let owner = self._caller();
-    //         self._approve_from_to(owner, spender, self.allowance(owner, spender) + delta_value)?;
-    //         Ok(())
-    //     }
-
-    //     default fn decrease_allowance(
-    //         &mut self,
-    //         spender: AccountId,
-    //         delta_value: Balance,
-    //     ) -> Result<(), PSP22Error> {
-    //         // let owner = Self::env().caller();
-    //         let owner = self._caller();
-    //         let allowance = self.allowance(owner, spender);
-
-    //         if allowance < delta_value {
-    //             return Err(PSP22Error::InsufficientAllowance);
-    //         }
-
-    //         self._approve_from_to(owner, spender, allowance - delta_value)?;
-    //         Ok(())
-    //     }
-    // }
-
-    impl PSP22Mintable for MyStable {
-        #[ink(message)]
-        fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            if self.admins.get(self._caller()).unwrap_or(false) {
-                return Err(PSP22::MissingRole);
-            }
-            self._mint(account, amount)
-        }
-    }
-    impl PSP22Burnable for MyStable {
-        #[ink(message)]
-        fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            if self.admins.get(self._caller()).unwrap_or(false) {
-                return Err(PSP22::MissingRole);
-            }
-            self._mint(account, amount)
-        }
-    }
-
     pub trait PSP22Internal {
         fn _balance_of(&mut self, owner: &AccountId) -> Balance;
         fn _balance_of_view(&self, owner: &AccountId) -> Balance;
