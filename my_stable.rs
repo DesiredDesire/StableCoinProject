@@ -39,7 +39,7 @@ pub mod my_psp22 {
         pub tax_last_block: u128,
         pub tax_denom_e18: u128,
 
-        pub minters: Mapping<AccountId, bool>,
+        pub admins: Mapping<AccountId, bool>,
     }
 
     impl MyStable {
@@ -78,8 +78,8 @@ pub mod my_psp22 {
 
         #[ink(message)]
         #[modifiers(only_owner)]
-        pub fn set_minter(&mut self, account: AccountId, set_to: bool) -> Result<(), OwnableError> {
-            self.minters.insert(&account, &set_to);
+        pub fn set_admin(&mut self, account: AccountId, set_to: bool) -> Result<(), OwnableError> {
+            self.admins.insert(&account, &set_to);
             Ok(())
         }
 
@@ -178,8 +178,19 @@ pub mod my_psp22 {
 
     impl PSP22Mintable for MyStable {
         #[ink(message)]
-        #[modifiers(only_owner)]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
+            if (self.admins.get(self._caller()).unwrap_or(false)) {
+                return Err(PSP22::MissingRole);
+            }
+            self._mint(account, amount)
+        }
+    }
+    impl PSP22MBurnable for MyStable {
+        #[ink(message)]
+        fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
+            if (self.admins.get(self._caller()).unwrap_or(false)) {
+                return Err(PSP22::MissingRole);
+            }
             self._mint(account, amount)
         }
     }
