@@ -4,6 +4,7 @@
 #[brush::contract]
 pub mod my_psp22 {
 
+    use brush::test_utils::*;
     use brush::{
         contracts::access_control::*,
         contracts::ownable::*,
@@ -21,6 +22,16 @@ pub mod my_psp22 {
     use ink_storage::Mapping;
 
     const E18: u128 = 10 ^ 18;
+
+    /// Event emitted when a token transfer occurs.
+    #[ink(event)]
+    pub struct Transfer {
+        #[ink(topic)]
+        from: Option<AccountId>,
+        #[ink(topic)]
+        to: Option<AccountId>,
+        value: Balance,
+    }
 
     #[ink(storage)]
     #[derive(
@@ -185,6 +196,19 @@ pub mod my_psp22 {
                 instance.tax_denom_e18 = E18;
             })
         }
+
+        #[ink(message)]
+        pub fn get_minter(&self) -> u32 {
+            MINTER
+        }
+        #[ink(message)]
+        pub fn get_setter(&self) -> u32 {
+            SETTER
+        }
+        #[ink(message)]
+        pub fn get_burner(&self) -> u32 {
+            BURNER
+        }
         // fn new_init(&mut self) {
         //     let caller = Self::env().caller();
         //     self._init_with_owner(caller);
@@ -193,7 +217,7 @@ pub mod my_psp22 {
         //     self.tax_rate_e18 = 1000001000000000000;
         //     self.tax_last_block = Self::env().block_number() as u128;
         //     self.tax_denom_e18 = E18;
-        // }
+        // }'
 
         fn _block_number(&self) -> u128 {
             self.env().block_number() as u128
@@ -273,17 +297,33 @@ pub mod my_psp22 {
 
     impl PSP22Internal for MyStable {
         fn _balance_of(&mut self, owner: &AccountId) -> Balance {
-            if self.is_untaxed.get(owner).unwrap_or(true) {
+            if self.is_untaxed.get(owner).unwrap_or(false) {
+                ink_env::debug_println!(
+                    "UNTAXED {}",
+                    self.untaxed_balances.get(owner).unwrap_or(0)
+                );
                 return self.untaxed_balances.get(owner).unwrap_or(0);
             } else {
+                ink_env::debug_println!(
+                    "TAXED {}",
+                    self.taxed_balances.get(owner).unwrap_or(0) / self._tax_denom()
+                );
                 return self.taxed_balances.get(owner).unwrap_or(0) / self._tax_denom();
             }
         }
 
         fn _balance_of_view(&self, owner: &AccountId) -> Balance {
-            if self.is_untaxed.get(owner).unwrap_or(true) {
+            if self.is_untaxed.get(owner).unwrap_or(false) {
+                ink_env::debug_println!(
+                    "UNTAXED {}",
+                    self.untaxed_balances.get(owner).unwrap_or(0)
+                );
                 return self.untaxed_balances.get(owner).unwrap_or(0);
             } else {
+                ink_env::debug_println!(
+                    "TAXED {}",
+                    self.taxed_balances.get(owner).unwrap_or(0) / self._tax_denom_view()
+                );
                 return self.taxed_balances.get(owner).unwrap_or(0) / self._tax_denom_view();
             }
         }
@@ -408,6 +448,7 @@ pub mod my_psp22 {
         }
 
         fn _mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
+            ink_env::debug_println!("MINT | START{}", self.supply);
             if account.is_zero() {
                 return Err(PSP22Error::ZeroRecipientAddress);
             }
@@ -420,14 +461,24 @@ pub mod my_psp22 {
                 self.untaxed_supply += amount;
             } else {
                 let taxed_amount = amount * self._tax_denom();
+                ink_env::debug_println!("amount: {}", amount);
+                ink_env::debug_println!("tax: {}", self._tax_denom());
+                ink_env::debug_println!("taxed_amount: {}", taxed_amount);
                 let old_balance = self.taxed_balances.get(account).unwrap_or_default();
+                ink_env::debug_println!("old balance: {}", old_balance);
+                ink_env::debug_println!("amount to insert: {}", old_balance + taxed_amount);
                 self.taxed_balances
                     .insert(&account, &(old_balance + taxed_amount));
+                ink_env::debug_println!(
+                    "taxed_balance: {}",
+                    self.taxed_balances.get(account).unwrap_or(0)
+                );
                 self.taxed_supply += taxed_amount;
             }
             self.supply += amount;
             // self._after_token_transfer(Some(&account), None, &amount)?;
             //self._emit_transfer_event(None, Some(account), amount);
+            ink_env::debug_println!("MINT | END supply: {}", self.supply);
             Ok(())
         }
 
@@ -471,6 +522,7 @@ pub mod my_psp22 {
 
     impl MyStableInternals for MyStable {
         fn _tax_denom(&mut self) -> u128 {
+            //TODO add tests
             let current_block: u128 = self._block_number();
             let mut uncounted_blocks: u128 = current_block - self.tax_last_block;
             if uncounted_blocks > 0 {
@@ -535,6 +587,27 @@ pub mod my_psp22 {
                 self.untaxed_supply += untaxed_balance;
                 self.is_untaxed.insert(&account, &(!is_untaxed))
             }
+        }
+    }
+
+    // tests
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use ink_lang as ink;
+        #[ink::test]
+        fn should_emit_transfer_event_after_mint() {
+            // Constructor works.
+            let amount_to_mint = 100;
+            let decimals = 18;
+            let accounts = accounts();
+            change_caller(accounts.alice);
+            let mut psp22 = MyStable::new(None, None, decimals);
+            assert!(psp22.setup_role(MINTER, accounts.bob).is_ok());
+
+            change_caller(accounts.bob);
+            assert!(psp22.mint(accounts.charlie, amount_to_mint).is_ok());
+            assert_eq!(psp22.balance_of(accounts.charlie), amount_to_mint);
         }
     }
 }
