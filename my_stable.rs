@@ -162,7 +162,7 @@ pub mod my_stable_coin {
             let caller = self.env().caller();
             let allowance = self.allowance(from, caller);
 
-            if allowance > value {
+            if allowance < value {
                 return Err(PSP22Error::InsufficientAllowance);
             }
 
@@ -420,53 +420,29 @@ pub mod my_stable_coin {
                 return Err(PSP22Error::ZeroRecipientAddress);
             }
 
-            let from_balance = self._my_balance_of(&from);
-
-            if from_balance < amount {
-                return Err(PSP22Error::InsufficientBalance);
-            }
             self._do_safe_transfer_check(&from, &to, &amount, &data)?;
 
             let from_untaxed: bool = self.is_untaxed.get(from).unwrap_or_default();
             let to_untaxed: bool = self.is_untaxed.get(to).unwrap_or_default();
             // self._before_token_transfer(Some(&account), None, &amount)?;
 
+            let result;
             if from_untaxed && to_untaxed {
-                self.untaxed_balances
-                    .insert(&from, &(from_balance - amount));
-                let to_balance = self._my_balance_of(&to);
-                self.untaxed_balances.insert(&to, &(to_balance + amount));
-                return Ok(());
+                result = self._decrease_untaxed_balance(from, amount);
+                self._increase_untaxed_balance(to, amount);
             } else if from_untaxed && !to_untaxed {
-                let taxed_amount: Balance = amount * self._tax_denom_e18() / E18;
-                self.untaxed_balances
-                    .insert(&from, &(from_balance - amount));
-                let to_balance: Balance = self.taxed_balances.get(to).unwrap_or(0);
-                self.taxed_balances
-                    .insert(&to, &(to_balance + taxed_amount));
-                self.untaxed_supply -= amount;
-                self.taxed_supply += taxed_amount;
+                result = self._decrease_untaxed_balance(from, amount);
+                self._increase_taxed_balance(to, amount);
             } else if !from_untaxed && to_untaxed {
-                let taxed_amount: Balance = amount * self._tax_denom_e18() / E18 + 1; // round up
-                let from_balance: Balance = self.taxed_balances.get(from).unwrap_or(0);
-                self.taxed_balances
-                    .insert(&from, &(from_balance - taxed_amount));
-                let to_balance = self._my_balance_of(&to);
-                self.untaxed_balances.insert(&to, &(to_balance + amount));
-                self.taxed_supply -= taxed_amount;
-                self.untaxed_supply += amount;
-            } else if !from_untaxed && !to_untaxed {
-                let taxed_amount: Balance = amount * self._tax_denom_e18() / E18;
-                let from_balance: Balance = self.taxed_balances.get(from).unwrap_or(0);
-                self.taxed_balances
-                    .insert(&from, &(from_balance - taxed_amount));
-                let to_balance: Balance = self.taxed_balances.get(to).unwrap_or(0);
-                self.taxed_balances
-                    .insert(&to, &(to_balance + taxed_amount));
+                result = self._decrease_taxed_balance(from, amount);
+                self._increase_untaxed_balance(to, amount);
+            } else {
+                result = self._decrease_taxed_balance(from, amount);
+                self._increase_taxed_balance(to, amount);
             }
             // self._after_token_transfer(Some(&account), None, &amount)?;
             self._emit_transfer_event(Some(from), Some(to), amount);
-            Ok(())
+            result
         }
         fn _approve_from_to(
             &mut self,
@@ -487,29 +463,19 @@ pub mod my_stable_coin {
         }
 
         fn _mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            ink_env::debug_println!("MINT | START{}", self.supply);
             if account.is_zero() {
                 return Err(PSP22Error::ZeroRecipientAddress);
             }
             // self._before_token_transfer(Some(&account), None, &amount)?;
 
             if self.is_untaxed.get(account).unwrap_or_default() {
-                let old_balance = self.untaxed_balances.get(account).unwrap_or_default();
-                self.untaxed_balances
-                    .insert(&account, &(old_balance + amount));
-                self.untaxed_supply += amount;
+                self._increase_untaxed_balance(account, amount);
             } else {
-                let taxed_amount = amount * self._tax_denom_e18() / E18;
-                let old_balance = self.taxed_balances.get(account).unwrap_or_default();
-                self.taxed_balances
-                    .insert(&account, &(old_balance + taxed_amount));
-                self.taxed_supply += taxed_amount;
+                self._increase_taxed_balance(account, amount);
             }
             self.supply += amount;
             // self._after_token_transfer(Some(&account), None, &amount)?;
-            ink_env::debug_println!("MINT | before emit");
             self._emit_transfer_event(None, Some(account), amount);
-            ink_env::debug_println!("MINT | after emit");
             Ok(())
         }
 
@@ -524,27 +490,46 @@ pub mod my_stable_coin {
                 return Err(PSP22Error::InsufficientBalance);
             }
 
+            let result;
             if self.is_untaxed.get(account).unwrap_or_default() {
-                from_balance -= amount;
-                self.untaxed_balances.insert(&account, &from_balance);
+                result = self._decrease_untaxed_balance(account, amount);
             } else {
-                from_balance -= amount * self._tax_denom_e18() / E18 + 1; //round up
-                self.taxed_balances.insert(&account, &from_balance);
+                result = self._decrease_taxed_balance(account, amount);
             }
 
             self.supply -= amount;
             // self._after_token_transfer(Some(&account), None, &amount)?;
             self._emit_transfer_event(Some(account), None, amount);
 
-            Ok(())
+            result
         }
     }
 
-    pub trait MyStableInternal {
+    pub trait MyStableInternals {
         fn _my_balance_of(&mut self, owner: &AccountId) -> Balance;
         fn _balance_of_view(&self, owner: &AccountId) -> Balance;
+        fn _tax_denom_e18(&mut self) -> u128;
+        fn _tax_denom_e18_view(&self) -> u128;
+        fn _undivided_taxed_supply(&self) -> Balance;
+        fn _undivided_taxed_balances(&self, account: AccountId) -> Balance;
+        fn _taxed_supply(&mut self) -> Balance;
+        fn _taxed_supply_view(&self) -> Balance;
+        fn _switch_is_untaxed(&mut self, account: AccountId, is_untaxed: bool);
+        fn _increase_untaxed_balance(&mut self, account: AccountId, amount: Balance);
+        fn _decrease_untaxed_balance(
+            &mut self,
+            account: AccountId,
+            amount: Balance,
+        ) -> Result<(), PSP22Error>;
+        fn _increase_taxed_balance(&mut self, account: AccountId, amount: Balance);
+        fn _decrease_taxed_balance(
+            &mut self,
+            account: AccountId,
+            amount: Balance,
+        ) -> Result<(), PSP22Error>;
     }
-    impl MyStableInternal for MyStable {
+
+    impl MyStableInternals for MyStable {
         fn _my_balance_of(&mut self, owner: &AccountId) -> Balance {
             if self.is_untaxed.get(owner).unwrap_or(false) {
                 return self.untaxed_balances.get(owner).unwrap_or(0);
@@ -569,19 +554,6 @@ pub mod my_stable_coin {
                     / self._tax_denom_e18_view();
             }
         }
-    }
-
-    pub trait MyStableInternals {
-        fn _tax_denom_e18(&mut self) -> u128;
-        fn _tax_denom_e18_view(&self) -> u128;
-        fn _undivided_taxed_supply(&self) -> Balance;
-        fn _undivided_taxed_balances(&self, account: AccountId) -> Balance;
-        fn _taxed_supply(&mut self) -> Balance;
-        fn _taxed_supply_view(&self) -> Balance;
-        fn _switch_is_untaxed(&mut self, account: AccountId, is_untaxed: bool);
-    }
-
-    impl MyStableInternals for MyStable {
         fn _tax_denom_e18(&mut self) -> u128 {
             //TODO add tests
             let current_block: u128 = self.env().block_number() as u128;
@@ -654,24 +626,60 @@ pub mod my_stable_coin {
         fn _taxed_supply_view(&self) -> Balance {
             return self.taxed_supply * E18 / self._tax_denom_e18_view();
         }
+
         fn _switch_is_untaxed(&mut self, account: AccountId, is_untaxed: bool) {
             if is_untaxed {
-                let untaxed_balance: u128 = self.untaxed_balances.get(account).unwrap_or(0) as u128;
-                let taxed_balance: u128 = untaxed_balance; //self._tax_denom_e18();
-                self.taxed_balances.insert(&account, &taxed_balance);
-                self.untaxed_balances.insert(&account, &0);
-                self.taxed_supply += taxed_balance;
-                self.untaxed_supply -= untaxed_balance;
-                self.is_untaxed.insert(&account, &(!is_untaxed))
+                let untaxed_balance: Balance =
+                    self.untaxed_balances.get(account).unwrap_or(0) as u128;
+                self._decrease_untaxed_balance(account, untaxed_balance);
+                let taxed_balance: Balance = untaxed_balance * self._tax_denom_e18() / E18;
+                self._increase_taxed_balance(account, taxed_balance);
             } else {
-                let taxed_balance = self.taxed_balances.get(account).unwrap_or_default();
-                let untaxed_balance = taxed_balance; // / self._tax_denom_e18();
-                self.untaxed_balances.insert(&account, &untaxed_balance);
-                self.taxed_balances.insert(&account, &0);
-                self.taxed_supply -= taxed_balance;
-                self.untaxed_supply += untaxed_balance;
-                self.is_untaxed.insert(&account, &(!is_untaxed))
+                let taxed_balance = self._undivided_taxed_balances(account);
+                self._decrease_taxed_balance(account, taxed_balance);
+                let untaxed_balance = taxed_balance * E18 / self._tax_denom_e18();
+                self._increase_untaxed_balance(account, untaxed_balance);
             }
+        }
+        fn _increase_untaxed_balance(&mut self, account: AccountId, amount: Balance) {
+            let balance: Balance = self.untaxed_balances.get(&account).unwrap_or(0);
+            self.untaxed_balances.insert(&account, &(balance + amount));
+            self.untaxed_supply += amount;
+        }
+        fn _decrease_untaxed_balance(
+            &mut self,
+            account: AccountId,
+            amount: Balance,
+        ) -> Result<(), PSP22Error> {
+            let balance: Balance = self.untaxed_balances.get(&account).unwrap_or(0);
+            if balance < amount {
+                return Err(PSP22Error::InsufficientBalance);
+            }
+            self.untaxed_balances.insert(&account, &(balance - amount));
+            self.untaxed_supply -= amount;
+            Ok(())
+        }
+        fn _increase_taxed_balance(&mut self, account: AccountId, amount: Balance) {
+            let balance: Balance = self.taxed_balances.get(&account).unwrap_or(0);
+            let multiplied_amount: Balance = balance * self._tax_denom_e18() / E18;
+            self.untaxed_balances
+                .insert(&account, &(balance + multiplied_amount));
+            self.untaxed_supply += multiplied_amount;
+        }
+        fn _decrease_taxed_balance(
+            &mut self,
+            account: AccountId,
+            amount: Balance,
+        ) -> Result<(), PSP22Error> {
+            let balance: Balance = self.taxed_balances.get(&account).unwrap_or(0);
+            let multiplied_amount: Balance = balance * self._tax_denom_e18() / E18 + 1; // round up
+            if self._undivided_taxed_balances(account) < multiplied_amount {
+                return Err(PSP22Error::InsufficientBalance);
+            }
+            self.untaxed_balances
+                .insert(&account, &(balance - multiplied_amount));
+            self.untaxed_supply -= multiplied_amount;
+            Ok(())
         }
     }
 
@@ -1411,6 +1419,7 @@ pub mod my_stable_coin {
 
             // Alice approves Bob for token transfers on her behalf.
             let alice_balance = psp22.balance_of(accounts.alice);
+            change_caller(accounts.alice);
             let initial_allowance = alice_balance + 2;
             assert!(psp22.approve(accounts.bob, initial_allowance).is_ok());
             change_caller(accounts.bob);
