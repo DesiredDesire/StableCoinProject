@@ -24,10 +24,10 @@ pub mod my_stable_coin {
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
-    // for testing
-    type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
-    use ink_env::test::DefaultAccounts;
-    use ink_env::DefaultEnvironment;
+    // // for testing
+    // type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
+    // use ink_env::test::DefaultAccounts;
+    // use ink_env::DefaultEnvironment;
 
     const E12: u128 = 1000000000000;
 
@@ -58,6 +58,8 @@ pub mod my_stable_coin {
         pub tax_rate_e12: u128,
         pub tax_last_block: u128,
         pub tax_denom_e12: u128,
+
+        pub treassury: AccountId,
     }
 
     impl Ownable for MyStable {}
@@ -243,6 +245,9 @@ pub mod my_stable_coin {
                 instance.tax_rate_e12 = E12 + 10000000000;
                 instance.tax_last_block = Self::env().block_number() as u128;
                 instance.tax_denom_e12 = E12;
+
+                instance.treassury = caller;
+                instance.is_untaxed.insert(&caller, &(true));
             })
         }
 
@@ -308,7 +313,7 @@ pub mod my_stable_coin {
         ) -> Result<(), AccessControlError> {
             let is_untaxed: bool = self.is_untaxed.get(account).unwrap_or_default();
             if is_untaxed != set_to {
-                self._switch_is_untaxed(account, is_untaxed);
+                self._switch_is_untaxed(account);
             }
             Ok(())
         }
@@ -333,6 +338,22 @@ pub mod my_stable_coin {
         ) -> Result<(), OwnableError> {
             self._setup_role(role, new_member);
             Ok(())
+        }
+
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        pub fn change_treassury(&mut self, new_treassury: AccountId) -> Result<(), OwnableError> {
+            let old_treassury = self.treassury;
+            self._switch_is_untaxed(new_treassury);
+            self.treassury = new_treassury;
+            self._switch_is_untaxed(old_treassury);
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn collect_tax(&mut self) -> Result<(), PSP22Error> {
+            let tax: Balance = self.supply - self.untaxed_supply - self._taxed_supply();
+            self._mint(self.treassury, tax)
         }
     }
 
@@ -525,7 +546,7 @@ pub mod my_stable_coin {
         fn _undivided_taxed_balances(&self, account: AccountId) -> Balance;
         fn _taxed_supply(&mut self) -> Balance;
         fn _taxed_supply_view(&self) -> Balance;
-        fn _switch_is_untaxed(&mut self, account: AccountId, is_untaxed: bool);
+        fn _switch_is_untaxed(&mut self, account: AccountId);
         fn _increase_untaxed_balance(&mut self, account: AccountId, amount: Balance);
         fn _decrease_untaxed_balance(
             &mut self,
@@ -614,19 +635,24 @@ pub mod my_stable_coin {
             return self.taxed_supply * E12 / self._tax_denom_e12_view();
         }
 
-        fn _switch_is_untaxed(&mut self, account: AccountId, is_untaxed: bool) {
+        fn _switch_is_untaxed(&mut self, account: AccountId) {
+            if account == self.treassury {
+                return;
+            }
             let tax_denom_e12 = self._tax_denom_e12();
-            if is_untaxed {
+            if self.is_untaxed.get(account).unwrap_or_default() {
                 let untaxed_balance: Balance =
                     self.untaxed_balances.get(account).unwrap_or(0) as u128;
                 self._decrease_untaxed_balance(account, untaxed_balance);
                 let taxed_balance: Balance = untaxed_balance * tax_denom_e12 / E12;
                 self._increase_taxed_balance(account, taxed_balance);
+                self.is_untaxed.insert(&account, &(false));
             } else {
                 let taxed_balance = self._undivided_taxed_balances(account);
                 self._decrease_taxed_balance(account, taxed_balance);
                 let untaxed_balance = taxed_balance * E12 / tax_denom_e12;
                 self._increase_untaxed_balance(account, untaxed_balance);
+                self.is_untaxed.insert(&account, &(true));
             }
         }
         fn _increase_untaxed_balance(&mut self, account: AccountId, amount: Balance) {
