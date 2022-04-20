@@ -5,7 +5,6 @@
 pub mod my_stable_coin {
 
     use brush::test_utils::*;
-    use brush::traits::EnvAccess;
     use brush::{
         contracts::access_control::*,
         contracts::ownable::*,
@@ -17,6 +16,7 @@ pub mod my_stable_coin {
     };
 
     use ink_env::{CallFlags, Error as EnvError};
+    use ink_lang::codegen::EmitEvent;
     use ink_lang::codegen::Env;
     use ink_prelude::{string::String, vec::Vec};
 
@@ -27,62 +27,6 @@ pub mod my_stable_coin {
     type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
 
     const E18: u128 = 10 ^ 18;
-
-    #[ink(event)]
-    pub struct Transfer {
-        #[ink(topic)]
-        from: Option<AccountId>,
-        #[ink(topic)]
-        to: Option<AccountId>,
-        value: Balance,
-    }
-
-    #[ink(event)]
-    pub struct Approval {
-        #[ink(topic)]
-        owner: Option<AccountId>,
-        #[ink(topic)]
-        spender: Option<AccountId>,
-        value: Balance,
-    }
-
-    #[ink(event)]
-    pub struct OwnershipTransferred {
-        #[ink(topic)]
-        previous_owner: Option<AccountId>,
-        #[ink(topic)]
-        new_owner: Option<AccountId>,
-    }
-
-    #[ink(event)]
-    pub struct RoleAdminChanged {
-        #[ink(topic)]
-        role: RoleType,
-        #[ink(topic)]
-        previous_admin_role: RoleType,
-        #[ink(topic)]
-        new_admin_role: RoleType,
-    }
-
-    #[ink(event)]
-    pub struct RoleGranted {
-        #[ink(topic)]
-        role: RoleType,
-        #[ink(topic)]
-        grantee: AccountId,
-        #[ink(topic)]
-        grantor: Option<AccountId>,
-    }
-
-    #[ink(event)]
-    pub struct RoleRevoked {
-        #[ink(topic)]
-        role: RoleType,
-        #[ink(topic)]
-        account: AccountId,
-        #[ink(topic)]
-        sender: AccountId,
-    }
 
     #[ink(storage)]
     #[derive(
@@ -113,26 +57,18 @@ pub mod my_stable_coin {
         pub tax_denom_e18: u128,
     }
 
-    impl Ownable for MyStable {
-        #[ink(message)]
-        #[modifiers(only_owner)]
-        fn renounce_ownership(&mut self) -> Result<(), OwnableError> {
-            let old_owner = self.owner();
-            self.ownable.owner = ZERO_ADDRESS.into();
-            self._emit_ownership_transferred_event(Some(old_owner), None);
-            Ok(())
-        }
+    impl Ownable for MyStable {}
 
-        #[ink(message)]
-        #[modifiers(only_owner)]
-        fn transfer_ownership(&mut self, new_owner: AccountId) -> Result<(), OwnableError> {
-            if new_owner.is_zero() {
-                return Err(OwnableError::NewOwnerIsZero);
-            }
-            let old_owner = self.owner();
-            self.ownable.owner = new_owner;
-            self._emit_ownership_transferred_event(Some(old_owner), Some(new_owner));
-            Ok(())
+    impl OwnableInternal for MyStable {
+        fn _emit_ownership_transferred_event(
+            &self,
+            _previous_owner: Option<AccountId>,
+            _new_owner: Option<AccountId>,
+        ) {
+            self.env().emit_event(OwnershipTransferred {
+                previous_owner: _previous_owner,
+                new_owner: _new_owner,
+            })
         }
     }
 
@@ -140,58 +76,7 @@ pub mod my_stable_coin {
     const BURNER: RoleType = ink_lang::selector_id!("BURNER");
     const SETTER: RoleType = ink_lang::selector_id!("SETTER");
 
-    impl AccessControl for MyStable {
-        #[ink(message)]
-        fn has_role(&self, role: RoleType, address: AccountId) -> bool {
-            has_role(self, &role, &address)
-        }
-
-        #[ink(message)]
-        fn get_role_admin(&self, role: RoleType) -> RoleType {
-            get_role_admin(self, &role)
-        }
-
-        #[ink(message)]
-        #[modifiers(only_role(get_role_admin(self, &role)))]
-        fn grant_role(
-            &mut self,
-            role: RoleType,
-            account: AccountId,
-        ) -> Result<(), AccessControlError> {
-            if has_role(self, &role, &account) {
-                return Err(AccessControlError::RoleRedundant);
-            }
-            self.access.members.insert((&role, &account), &());
-            self._emit_role_granted(role, account, Some(self._caller()));
-            Ok(())
-        }
-
-        #[ink(message)]
-        #[modifiers(only_role(get_role_admin(self, &role)))]
-        fn revoke_role(
-            &mut self,
-            role: RoleType,
-            account: AccountId,
-        ) -> Result<(), AccessControlError> {
-            check_role(self, &role, &account)?;
-            self._do_revoke_role(role, account);
-            Ok(())
-        }
-
-        #[ink(message)]
-        fn renounce_role(
-            &mut self,
-            role: RoleType,
-            account: AccountId,
-        ) -> Result<(), AccessControlError> {
-            if self._caller() != account {
-                return Err(AccessControlError::InvalidCaller);
-            }
-            check_role(self, &role, &account)?;
-            self._do_revoke_role(role, account);
-            Ok(())
-        }
-    }
+    impl AccessControl for MyStable {}
 
     impl AccessControlInternal for MyStable {
         fn _emit_role_admin_changed(
@@ -200,86 +85,33 @@ pub mod my_stable_coin {
             _previous_admin_role: RoleType,
             _new_admin_role: RoleType,
         ) {
+            self.env().emit_event(RoleAdminChanged {
+                role: _role,
+                previous_admin_role: _previous_admin_role,
+                new_admin_role: _new_admin_role,
+            })
         }
 
-        default fn _emit_role_granted(
+        fn _emit_role_granted(
             &mut self,
             _role: RoleType,
             _grantee: AccountId,
             _grantor: Option<AccountId>,
         ) {
+            self.env().emit_event(RoleGranted {
+                role: _role,
+                grantee: _grantee,
+                grantor: _grantor,
+            })
         }
 
-        default fn _emit_role_revoked(
-            &mut self,
-            _role: RoleType,
-            _account: AccountId,
-            _sender: AccountId,
-        ) {
+        fn _emit_role_revoked(&mut self, _role: RoleType, _account: AccountId, _sender: AccountId) {
+            self.env().emit_event(RoleRevoked {
+                role: _role,
+                account: _account,
+                sender: _sender,
+            })
         }
-
-        fn _default_admin() -> RoleType {
-            DEFAULT_ADMIN_ROLE
-        }
-
-        fn _init_with_caller(&mut self) {
-            let caller = self._caller();
-            self._init_with_admin(caller);
-        }
-
-        fn _init_with_admin(&mut self, admin: AccountId) {
-            self._setup_role(Self::_default_admin(), admin);
-        }
-
-        fn _setup_role(&mut self, role: RoleType, admin: AccountId) {
-            if !has_role(self, &role, &admin) {
-                self.access.members.insert((&role, &admin), &());
-
-                self._emit_role_granted(role, admin, None);
-            }
-        }
-
-        fn _do_revoke_role(&mut self, role: RoleType, account: AccountId) {
-            self.access.members.remove((&role, &account));
-            self._emit_role_revoked(role, account, self._caller());
-        }
-
-        fn _set_role_admin(&mut self, role: RoleType, new_admin: RoleType) {
-            let mut entry = self.access.admin_roles.get(&role);
-            if entry.is_none() {
-                entry = Some(Self::_default_admin());
-            }
-            let old_admin = entry.unwrap();
-            self.access.admin_roles.insert(&role, &new_admin);
-            self._emit_role_admin_changed(role, old_admin, new_admin);
-        }
-    }
-
-    pub fn check_role<T: AccessControlStorage>(
-        instance: &T,
-        role: &RoleType,
-        account: &AccountId,
-    ) -> Result<(), AccessControlError> {
-        if !has_role(instance, role, account) {
-            return Err(AccessControlError::MissingRole);
-        }
-        Ok(())
-    }
-
-    pub fn has_role<T: AccessControlStorage>(
-        instance: &T,
-        role: &RoleType,
-        account: &AccountId,
-    ) -> bool {
-        instance.get().members.get((role, account)).is_some()
-    }
-
-    pub fn get_role_admin<T: AccessControlStorage>(instance: &T, role: &RoleType) -> RoleType {
-        instance
-            .get()
-            .admin_roles
-            .get(role)
-            .unwrap_or(T::_default_admin())
     }
 
     impl PSP22 for MyStable {
@@ -306,7 +138,7 @@ pub mod my_stable_coin {
             data: Vec<u8>,
         ) -> Result<(), PSP22Error> {
             //let from = Self::env().caller();
-            let from = self._caller();
+            let from = self.env().caller();
             self._transfer_from_to(from, to, value, data)?;
             Ok(())
         }
@@ -320,7 +152,7 @@ pub mod my_stable_coin {
             data: Vec<u8>,
         ) -> Result<(), PSP22Error> {
             // let caller = Self::env().caller();
-            let caller = self._caller();
+            let caller = self.env().caller();
             let allowance = self.allowance(from, caller);
 
             if allowance < value {
@@ -335,7 +167,7 @@ pub mod my_stable_coin {
         #[ink(message)]
         fn approve(&mut self, spender: AccountId, value: Balance) -> Result<(), PSP22Error> {
             // let owner = Self::env().caller();
-            let owner = self._caller();
+            let owner = self.env().caller();
             self._approve_from_to(owner, spender, value)?;
             Ok(())
         }
@@ -347,7 +179,7 @@ pub mod my_stable_coin {
             delta_value: Balance,
         ) -> Result<(), PSP22Error> {
             // let owner = Self::env().caller();
-            let owner = self._caller();
+            let owner = self.env().caller();
             self._approve_from_to(owner, spender, self.allowance(owner, spender) + delta_value)?;
             Ok(())
         }
@@ -359,7 +191,7 @@ pub mod my_stable_coin {
             delta_value: Balance,
         ) -> Result<(), PSP22Error> {
             // let owner = Self::env().caller();
-            let owner = self._caller();
+            let owner = self.env().caller();
             let allowance = self.allowance(owner, spender);
 
             if allowance < delta_value {
@@ -414,76 +246,6 @@ pub mod my_stable_coin {
             self._emit_ownership_transferred_event(None, Some(owner));
         }
 
-        fn _emit_transfer_event(
-            &self,
-            _from: Option<AccountId>,
-            _to: Option<AccountId>,
-            _amount: Balance,
-        ) {
-            Self::env().emit_event(Transfer {
-                from: _from,
-                to: _to,
-                value: _amount,
-            });
-        }
-        fn _emit_approval_event(
-            &self,
-            _owner: Option<AccountId>,
-            _spender: Option<AccountId>,
-            _amount: Balance,
-        ) {
-            Self::env().emit_event(Approval {
-                owner: _owner,
-                spender: _spender,
-                value: _amount,
-            });
-        }
-
-        fn _emit_ownership_transferred_event(
-            &self,
-            _previous_owner: Option<AccountId>,
-            _new_owner: Option<AccountId>,
-        ) {
-            Self::env().emit_event(OwnershipTransferred {
-                previous_owner: _previous_owner,
-                new_owner: _new_owner,
-            })
-        }
-
-        fn _emit_role_admin_changed_event(
-            &mut self,
-            _role: RoleType,
-            _previous_admin_role: RoleType,
-            _new_admin_role: RoleType,
-        ) {
-            Self::env().emit_event(RoleAdminChanged {
-                role: _role,
-                previous_admin_role: _previous_admin_role,
-                new_admin_role: _new_admin_role,
-            })
-        }
-
-        fn _emit_role_granted(
-            &mut self,
-            _role: RoleType,
-            _grantee: AccountId,
-            _grantor: Option<AccountId>,
-        ) {
-            Self::env().emit_event(RoleGranted {
-                role: _role,
-                grantee: _grantee,
-                grantor: _grantor,
-            })
-        }
-
-        fn _emit_role_revoked(&mut self, _role: RoleType, _account: AccountId, _sender: AccountId) {
-            Self::env().emit_event(RoleRevoked {
-                role: _role,
-                account: _account,
-                sender: _sender,
-            })
-        }
-
         #[ink(message)]
         pub fn get_minter(&self) -> u32 {
             MINTER
@@ -495,22 +257,6 @@ pub mod my_stable_coin {
         #[ink(message)]
         pub fn get_burner(&self) -> u32 {
             BURNER
-        }
-        // fn new_init(&mut self) {
-        //     let caller = Self::env().caller();
-        //     self._init_with_owner(caller);
-        //     self.tax_interest_update_period = 3600;
-        //     self.tax_interest_applied = 0;
-        //     self.tax_rate_e18 = 1000001000000000000;
-        //     self.tax_last_block = Self::env().block_number() as u128;
-        //     self.tax_denom_e18 = E18;
-        // }'
-
-        fn _block_number(&self) -> u128 {
-            Self::env().block_number() as u128
-        }
-        fn _caller(&self) -> AccountId {
-            Self::env().caller()
         }
 
         #[ink(message)]
@@ -551,6 +297,14 @@ pub mod my_stable_coin {
     }
 
     pub trait MyStableInternal {
+        fn _emit_transfer_event(
+            &self,
+            _from: Option<AccountId>,
+            _to: Option<AccountId>,
+            _amount: Balance,
+        );
+        fn _emit_approval_event(&self, _owner: AccountId, _spender: AccountId, _amount: Balance);
+
         fn _balance_of(&mut self, owner: &AccountId) -> Balance;
         fn _balance_of_view(&self, owner: &AccountId) -> Balance;
 
@@ -583,6 +337,25 @@ pub mod my_stable_coin {
     }
 
     impl MyStableInternal for MyStable {
+        fn _emit_transfer_event(
+            &self,
+            _from: Option<AccountId>,
+            _to: Option<AccountId>,
+            _amount: Balance,
+        ) {
+            self.env().emit_event(Transfer {
+                from: _from,
+                to: _to,
+                value: _amount,
+            });
+        }
+        fn _emit_approval_event(&self, _owner: AccountId, _spender: AccountId, _amount: Balance) {
+            self.env().emit_event(Approval {
+                owner: _owner,
+                spender: _spender,
+                value: _amount,
+            });
+        }
         fn _balance_of(&mut self, owner: &AccountId) -> Balance {
             if self.is_untaxed.get(owner).unwrap_or(false) {
                 ink_env::debug_println!(
@@ -615,7 +388,7 @@ pub mod my_stable_coin {
             }
         }
 
-        fn _do_safe_transfer_check(
+        default fn _do_safe_transfer_check(
             &mut self,
             from: &AccountId,
             to: &AccountId,
@@ -625,7 +398,7 @@ pub mod my_stable_coin {
             self.flush();
             let builder = PSP22ReceiverRef::before_received_builder(
                 to,
-                self._caller(),
+                self.env().caller(),
                 from.clone(),
                 value.clone(),
                 data.clone(),
@@ -730,7 +503,7 @@ pub mod my_stable_coin {
             }
 
             self.allowances.insert((&owner, &spender), &amount);
-            self._emit_approval_event(Some(owner), Some(spender), amount);
+            self._emit_approval_event(owner, spender, amount);
             Ok(())
         }
 
@@ -810,7 +583,7 @@ pub mod my_stable_coin {
     impl MyStableInternals for MyStable {
         fn _tax_denom(&mut self) -> u128 {
             //TODO add tests
-            let current_block: u128 = self._block_number();
+            let current_block: u128 = self.env().block_number() as u128;
             let mut uncounted_blocks: u128 = current_block - self.tax_last_block;
             if uncounted_blocks > 0 {
                 let update_period: u128 = self.tax_interest_update_period;
@@ -832,7 +605,7 @@ pub mod my_stable_coin {
         }
 
         fn _tax_denom_view(&self) -> u128 {
-            let current_block: u128 = self._block_number();
+            let current_block: u128 = self.env().block_number() as u128;
             let mut tax_denom_e18: u128 = self.tax_denom_e18;
             let mut tax_interest_applied = self.tax_interest_applied;
             if current_block > self.tax_last_block {
@@ -877,7 +650,69 @@ pub mod my_stable_coin {
         }
     }
 
+    //
+    // EVENT DEFINITIONS
+    //
+    #[ink(event)]
+    pub struct Transfer {
+        #[ink(topic)]
+        from: Option<AccountId>,
+        #[ink(topic)]
+        to: Option<AccountId>,
+        value: Balance,
+    }
+
+    #[ink(event)]
+    pub struct Approval {
+        #[ink(topic)]
+        owner: AccountId,
+        #[ink(topic)]
+        spender: AccountId,
+        value: Balance,
+    }
+
+    #[ink(event)]
+    pub struct OwnershipTransferred {
+        #[ink(topic)]
+        previous_owner: Option<AccountId>,
+        #[ink(topic)]
+        new_owner: Option<AccountId>,
+    }
+
+    #[ink(event)]
+    pub struct RoleAdminChanged {
+        #[ink(topic)]
+        role: RoleType,
+        #[ink(topic)]
+        previous_admin_role: RoleType,
+        #[ink(topic)]
+        new_admin_role: RoleType,
+    }
+
+    #[ink(event)]
+    pub struct RoleGranted {
+        #[ink(topic)]
+        role: RoleType,
+        #[ink(topic)]
+        grantee: AccountId,
+        #[ink(topic)]
+        grantor: Option<AccountId>,
+    }
+
+    #[ink(event)]
+    pub struct RoleRevoked {
+        #[ink(topic)]
+        role: RoleType,
+        #[ink(topic)]
+        account: AccountId,
+        #[ink(topic)]
+        sender: AccountId,
+    }
+
+    //
     // tests
+    //
+
     #[cfg(test)]
     mod tests {
         use super::*;
