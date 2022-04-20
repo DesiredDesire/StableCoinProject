@@ -25,6 +25,8 @@ pub mod my_stable_coin {
 
     // for testing
     type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
+    use ink_env::test::DefaultAccounts;
+    use ink_env::DefaultEnvironment;
 
     const E18: u128 = 10 ^ 18;
 
@@ -105,11 +107,11 @@ pub mod my_stable_coin {
             })
         }
 
-        fn _emit_role_revoked(&mut self, _role: RoleType, _account: AccountId, _sender: AccountId) {
+        fn _emit_role_revoked(&mut self, _role: RoleType, _account: AccountId, _admin: AccountId) {
             self.env().emit_event(RoleRevoked {
                 role: _role,
                 account: _account,
-                sender: _sender,
+                admin: _admin,
             })
         }
     }
@@ -236,7 +238,7 @@ pub mod my_stable_coin {
                 // TaxedCoinData
                 instance.tax_interest_update_period = 3600;
                 instance.tax_interest_applied = 0;
-                instance.tax_rate_e18 = 1000001000000000000;
+                instance.tax_rate_e18 = E18 + 10000000000000000;
                 instance.tax_last_block = Self::env().block_number() as u128;
                 instance.tax_denom_e18 = E18;
             })
@@ -257,6 +259,16 @@ pub mod my_stable_coin {
         #[ink(message)]
         pub fn get_burner(&self) -> u32 {
             BURNER
+        }
+
+        #[ink(message)]
+        pub fn undevided_taxed_supply(&self) -> Balance {
+            self._undivided_taxed_supply()
+        }
+
+        #[ink(message)]
+        pub fn undivided_taxed_balances(&self, account: AccountId) -> Balance {
+            self._undivided_taxed_balances(account)
         }
 
         #[ink(message)]
@@ -530,7 +542,7 @@ pub mod my_stable_coin {
                 self.taxed_balances
                     .insert(&account, &(old_balance + taxed_amount));
                 ink_env::debug_println!(
-                    "taxed_balance: {}",
+                    "taxed_balances: {}",
                     self.taxed_balances.get(account).unwrap_or(0)
                 );
                 self.taxed_supply += taxed_amount;
@@ -575,6 +587,8 @@ pub mod my_stable_coin {
     pub trait MyStableInternals {
         fn _tax_denom(&mut self) -> u128;
         fn _tax_denom_view(&self) -> u128;
+        fn _undivided_taxed_supply(&self) -> Balance;
+        fn _undivided_taxed_balances(&self, account: AccountId) -> Balance;
         fn _taxed_supply(&mut self) -> Balance;
         fn _taxed_supply_view(&self) -> Balance;
         fn _switch_is_untaxed(&mut self, account: AccountId, is_untaxed: bool);
@@ -623,6 +637,15 @@ pub mod my_stable_coin {
             }
             return tax_denom_e18;
         }
+
+        fn _undivided_taxed_supply(&self) -> Balance {
+            self.taxed_supply
+        }
+
+        fn _undivided_taxed_balances(&self, account: AccountId) -> Balance {
+            self.taxed_balances.get(&account).unwrap_or(0)
+        }
+
         fn _taxed_supply(&mut self) -> Balance {
             return self.taxed_supply / self._tax_denom();
         }
@@ -706,7 +729,7 @@ pub mod my_stable_coin {
         #[ink(topic)]
         account: AccountId,
         #[ink(topic)]
-        sender: AccountId,
+        admin: AccountId,
     }
 
     //
@@ -838,6 +861,282 @@ pub mod my_stable_coin {
             assert_eq!(
                 my_ownable.transfer_ownership(new_owner),
                 Err(OwnableError::NewOwnerIsZero)
+            );
+        }
+
+        /// Access Control Tests
+
+        fn assert_role_admin_change_event(
+            event: &ink_env::test::EmittedEvent,
+            expected_role: RoleType,
+            expected_prev_admin: RoleType,
+            expected_new_admin: RoleType,
+        ) {
+            if let Event::RoleAdminChanged(RoleAdminChanged {
+                role,
+                previous_admin_role,
+                new_admin_role,
+            }) = <Event as scale::Decode>::decode(&mut &event.data[..])
+                .expect("encountered invalid contract event data buffer")
+            {
+                assert_eq!(
+                    role, expected_role,
+                    "Roles were not equal: encountered role {:?}, expected role {:?}",
+                    role, expected_role
+                );
+                assert_eq!(
+                previous_admin_role, expected_prev_admin,
+                "Previous admins were not equal: encountered previous admin {:?}, expected {:?}",
+                previous_admin_role, expected_prev_admin
+            );
+                assert_eq!(
+                    new_admin_role, expected_new_admin,
+                    "New admins were not equal: encountered new admin {:?}, expected {:?}",
+                    new_admin_role, expected_new_admin
+                );
+            }
+        }
+
+        fn assert_role_granted_event(
+            event: &ink_env::test::EmittedEvent,
+            expected_role: RoleType,
+            expected_grantee: AccountId,
+            expected_grantor: Option<AccountId>,
+        ) {
+            if let Event::RoleGranted(RoleGranted {
+                role,
+                grantee,
+                grantor,
+            }) = <Event as scale::Decode>::decode(&mut &event.data[..])
+                .expect("encountered invalid contract event data buffer")
+            {
+                assert_eq!(
+                    role, expected_role,
+                    "Roles were not equal: encountered role {:?}, expected role {:?}",
+                    role, expected_role
+                );
+                assert_eq!(
+                    grantee, expected_grantee,
+                    "Grantees were not equal: encountered grantee {:?}, expected {:?}",
+                    grantee, expected_grantee
+                );
+                assert_eq!(
+                    grantor, expected_grantor,
+                    "Grantors were not equal: encountered grantor {:?}, expected {:?}",
+                    grantor, expected_grantor
+                );
+            }
+        }
+
+        fn assert_role_revoked_event(
+            event: &ink_env::test::EmittedEvent,
+            expected_role: RoleType,
+            expected_account: AccountId,
+            expected_admin: AccountId,
+        ) {
+            if let Event::RoleRevoked(RoleRevoked {
+                role,
+                account,
+                admin,
+            }) = <Event as scale::Decode>::decode(&mut &event.data[..])
+                .expect("encountered invalid contract event data buffer")
+            {
+                assert_eq!(
+                    role, expected_role,
+                    "Roles were not equal: encountered role {:?}, expected role {:?}",
+                    role, expected_role
+                );
+                assert_eq!(
+                    account, expected_account,
+                    "Accounts were not equal: encountered account {:?}, expected {:?}",
+                    account, expected_account
+                );
+                assert_eq!(
+                    admin, expected_admin,
+                    "Admins were not equal: encountered admin {:?}, expected {:?}",
+                    admin, expected_admin
+                );
+            }
+        }
+
+        fn setup() -> DefaultAccounts<DefaultEnvironment> {
+            let accounts = accounts();
+
+            accounts
+        }
+
+        #[ink::test]
+        fn should_init_with_default_admin() {
+            let accounts = setup();
+            let access_control = MyStable::new(None, None, DECIMALS);
+            assert!(access_control.has_role(DEFAULT_ADMIN_ROLE, accounts.alice));
+            assert_eq!(
+                access_control.get_role_admin(DEFAULT_ADMIN_ROLE),
+                DEFAULT_ADMIN_ROLE
+            );
+            let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_role_granted_event(&emitted_events[0], DEFAULT_ADMIN_ROLE, accounts.alice, None);
+        }
+
+        #[ink::test]
+        fn should_grant_role() {
+            let accounts = setup();
+            let alice = accounts.alice;
+            let mut access_control = MyStable::new(None, None, DECIMALS);
+
+            assert!(access_control.grant_role(SETTER, alice).is_ok());
+            assert!(access_control.grant_role(MINTER, alice).is_ok());
+            assert!(access_control.grant_role(BURNER, alice).is_ok());
+
+            assert!(access_control.has_role(DEFAULT_ADMIN_ROLE, alice));
+            assert!(access_control.has_role(SETTER, alice));
+            assert!(access_control.has_role(MINTER, alice));
+            assert!(access_control.has_role(BURNER, alice));
+
+            let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_role_granted_event(&emitted_events[1], DEFAULT_ADMIN_ROLE, alice, None);
+            assert_role_granted_event(&emitted_events[2], SETTER, alice, Some(alice));
+            assert_role_granted_event(&emitted_events[3], MINTER, alice, Some(alice));
+            assert_role_granted_event(&emitted_events[4], BURNER, alice, Some(alice));
+        }
+
+        #[ink::test]
+        fn should_grant_role_fail() {
+            let accounts = setup();
+            let alice = accounts.alice;
+            let mut access_control = MyStable::new(None, None, DECIMALS);
+
+            assert!(access_control.grant_role(MINTER, alice).is_ok());
+            assert_eq!(
+                access_control.grant_role(MINTER, alice),
+                Err(AccessControlError::RoleRedundant)
+            );
+        }
+
+        #[ink::test]
+        fn should_revoke_role() {
+            let accounts = setup();
+            let mut access_control = MyStable::new(None, None, DECIMALS);
+
+            assert!(access_control.grant_role(SETTER, accounts.bob).is_ok());
+            assert!(access_control.has_role(SETTER, accounts.bob));
+            assert!(access_control.revoke_role(SETTER, accounts.bob).is_ok());
+
+            assert!(!access_control.has_role(SETTER, accounts.bob));
+
+            let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_role_granted_event(&emitted_events[0], DEFAULT_ADMIN_ROLE, accounts.alice, None);
+            assert_role_granted_event(
+                &emitted_events[2],
+                SETTER,
+                accounts.bob,
+                Some(accounts.alice),
+            );
+            assert_role_revoked_event(&emitted_events[2], SETTER, accounts.bob, accounts.alice);
+        }
+
+        #[ink::test]
+        fn should_renounce_role() {
+            let accounts = setup();
+            let mut access_control = MyStable::new(None, None, DECIMALS);
+            change_caller(accounts.alice);
+
+            assert!(access_control.grant_role(SETTER, accounts.eve).is_ok());
+            assert!(access_control.has_role(SETTER, accounts.eve));
+            change_caller(accounts.eve);
+            assert!(access_control.renounce_role(SETTER, accounts.eve).is_ok());
+
+            assert!(!access_control.has_role(SETTER, accounts.eve));
+
+            let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_role_granted_event(&emitted_events[1], DEFAULT_ADMIN_ROLE, accounts.alice, None);
+            assert_role_granted_event(
+                &emitted_events[2],
+                SETTER,
+                accounts.eve,
+                Some(accounts.alice),
+            );
+            assert_role_revoked_event(&emitted_events[3], SETTER, accounts.eve, accounts.eve);
+        }
+
+        #[ink::test]
+        fn should_change_role_admin() {
+            let accounts = setup();
+            let mut access_control = MyStable::new(None, None, DECIMALS);
+
+            assert!(access_control.grant_role(MINTER, accounts.eve).is_ok());
+            access_control._set_role_admin(SETTER, MINTER);
+            change_caller(accounts.eve);
+            assert!(access_control.grant_role(SETTER, accounts.bob).is_ok());
+
+            assert_eq!(access_control.get_role_admin(MINTER), DEFAULT_ADMIN_ROLE);
+            assert_eq!(access_control.get_role_admin(SETTER), MINTER);
+
+            let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_role_granted_event(&emitted_events[1], DEFAULT_ADMIN_ROLE, accounts.alice, None);
+            assert_role_granted_event(
+                &emitted_events[2],
+                MINTER,
+                accounts.eve,
+                Some(accounts.alice),
+            );
+            assert_role_admin_change_event(&emitted_events[2], SETTER, DEFAULT_ADMIN_ROLE, MINTER);
+            assert_role_granted_event(&emitted_events[3], SETTER, accounts.bob, Some(accounts.eve));
+        }
+
+        #[ink::test]
+        fn should_return_error_when_not_admin_grant_role() {
+            let accounts = setup();
+            let mut access_control = MyStable::new(None, None, DECIMALS);
+
+            assert!(access_control.grant_role(MINTER, accounts.eve).is_ok());
+            assert!(access_control.grant_role(SETTER, accounts.bob).is_ok());
+            access_control._set_role_admin(SETTER, MINTER);
+
+            assert_eq!(
+                access_control.grant_role(SETTER, accounts.eve),
+                Err(AccessControlError::MissingRole)
+            );
+        }
+
+        #[ink::test]
+        fn should_return_error_when_not_admin_revoke_role() {
+            let accounts = setup();
+            let mut access_control = MyStable::new(None, None, DECIMALS);
+
+            assert!(access_control.grant_role(MINTER, accounts.eve).is_ok());
+            assert!(access_control.grant_role(SETTER, accounts.bob).is_ok());
+            access_control._set_role_admin(SETTER, MINTER);
+
+            change_caller(accounts.bob);
+
+            assert_eq!(
+                access_control.revoke_role(MINTER, accounts.bob),
+                Err(AccessControlError::MissingRole)
+            );
+        }
+
+        #[ink::test]
+        fn should_return_error_when_not_self_renounce_role() {
+            let accounts = setup();
+            let mut access_control = MyStable::new(None, None, DECIMALS);
+
+            assert!(access_control.grant_role(SETTER, accounts.bob).is_ok());
+            assert_eq!(
+                access_control.renounce_role(SETTER, accounts.bob),
+                Err(AccessControlError::InvalidCaller)
+            );
+        }
+
+        #[ink::test]
+        fn should_return_error_when_account_doesnt_have_role() {
+            let accounts = setup();
+            change_caller(accounts.alice);
+            let mut access_control = MyStable::new(None, None, DECIMALS);
+
+            assert_eq!(
+                access_control.renounce_role(SETTER, accounts.alice),
+                Err(AccessControlError::MissingRole)
             );
         }
     }
