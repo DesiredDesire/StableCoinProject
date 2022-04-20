@@ -357,7 +357,7 @@ pub mod my_stable_coin {
             self._balance_of_view(owner)
         }
 
-        default fn _do_safe_transfer_check(
+        fn _do_safe_transfer_check(
             &mut self,
             from: &AccountId,
             to: &AccountId,
@@ -1202,6 +1202,22 @@ pub mod my_stable_coin {
             assert_eq!(psp22.untaxed_supply(), 0);
             assert_eq!(psp22.undivided_taxed_supply(), 0);
             assert_eq!(psp22.tax_denom(), E18);
+        }
+
+        #[ink::test]
+        fn EVENT_transfer_event_is_emited_on_mint() {
+            let accounts = accounts();
+            // Constructor works.
+            let mut psp22 = MyStable::new(None, None, DECIMALS);
+            // grant minter role and mint
+            psp22.grant_role(MINTER, accounts.bob);
+            let mut emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_eq!(emitted_events.len(), 3);
+
+            psp22.mint(accounts.charlie, E18);
+            // Transfer event triggered during initial construction.
+            emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_eq!(emitted_events.len(), 4);
         }
 
         /// The total supply was applied.
