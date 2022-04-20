@@ -2,9 +2,10 @@
 #![feature(min_specialization)]
 
 #[brush::contract]
-pub mod my_psp22 {
+pub mod my_stable_coin {
 
     use brush::test_utils::*;
+    use brush::traits::EnvAccess;
     use brush::{
         contracts::access_control::*,
         contracts::ownable::*,
@@ -12,18 +13,21 @@ pub mod my_psp22 {
         contracts::psp22::extensions::metadata::*,
         contracts::psp22::extensions::mintable::*,
         modifiers,
-        traits::{AccountIdExt, Flush},
+        traits::{AccountIdExt, Flush, ZERO_ADDRESS},
     };
 
     use ink_env::{CallFlags, Error as EnvError};
+    use ink_lang::codegen::Env;
     use ink_prelude::{string::String, vec::Vec};
 
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
+    // for testing
+    type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
+
     const E18: u128 = 10 ^ 18;
 
-    /// Event emitted when a token transfer occurs.
     #[ink(event)]
     pub struct Transfer {
         #[ink(topic)]
@@ -31,6 +35,53 @@ pub mod my_psp22 {
         #[ink(topic)]
         to: Option<AccountId>,
         value: Balance,
+    }
+
+    #[ink(event)]
+    pub struct Approval {
+        #[ink(topic)]
+        owner: Option<AccountId>,
+        #[ink(topic)]
+        spender: Option<AccountId>,
+        value: Balance,
+    }
+
+    #[ink(event)]
+    pub struct OwnershipTransferred {
+        #[ink(topic)]
+        previous_owner: Option<AccountId>,
+        #[ink(topic)]
+        new_owner: Option<AccountId>,
+    }
+
+    #[ink(event)]
+    pub struct RoleAdminChanged {
+        #[ink(topic)]
+        role: RoleType,
+        #[ink(topic)]
+        previous_admin_role: RoleType,
+        #[ink(topic)]
+        new_admin_role: RoleType,
+    }
+
+    #[ink(event)]
+    pub struct RoleGranted {
+        #[ink(topic)]
+        role: RoleType,
+        #[ink(topic)]
+        grantee: AccountId,
+        #[ink(topic)]
+        grantor: Option<AccountId>,
+    }
+
+    #[ink(event)]
+    pub struct RoleRevoked {
+        #[ink(topic)]
+        role: RoleType,
+        #[ink(topic)]
+        account: AccountId,
+        #[ink(topic)]
+        sender: AccountId,
     }
 
     #[ink(storage)]
@@ -62,14 +113,174 @@ pub mod my_psp22 {
         pub tax_denom_e18: u128,
     }
 
-    impl Ownable for MyStable {}
+    impl Ownable for MyStable {
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        fn renounce_ownership(&mut self) -> Result<(), OwnableError> {
+            let old_owner = self.owner();
+            self.ownable.owner = ZERO_ADDRESS.into();
+            self._emit_ownership_transferred_event(Some(old_owner), None);
+            Ok(())
+        }
+
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        fn transfer_ownership(&mut self, new_owner: AccountId) -> Result<(), OwnableError> {
+            if new_owner.is_zero() {
+                return Err(OwnableError::NewOwnerIsZero);
+            }
+            let old_owner = self.owner();
+            self.ownable.owner = new_owner;
+            self._emit_ownership_transferred_event(Some(old_owner), Some(new_owner));
+            Ok(())
+        }
+    }
 
     const MINTER: RoleType = ink_lang::selector_id!("MINTER");
     const BURNER: RoleType = ink_lang::selector_id!("BURNER");
     const SETTER: RoleType = ink_lang::selector_id!("SETTER");
 
-    impl AccessControl for MyStable {}
-    impl AccessControlInternal for MyStable {}
+    impl AccessControl for MyStable {
+        #[ink(message)]
+        fn has_role(&self, role: RoleType, address: AccountId) -> bool {
+            has_role(self, &role, &address)
+        }
+
+        #[ink(message)]
+        fn get_role_admin(&self, role: RoleType) -> RoleType {
+            get_role_admin(self, &role)
+        }
+
+        #[ink(message)]
+        #[modifiers(only_role(get_role_admin(self, &role)))]
+        fn grant_role(
+            &mut self,
+            role: RoleType,
+            account: AccountId,
+        ) -> Result<(), AccessControlError> {
+            if has_role(self, &role, &account) {
+                return Err(AccessControlError::RoleRedundant);
+            }
+            self.access.members.insert((&role, &account), &());
+            self._emit_role_granted(role, account, Some(self._caller()));
+            Ok(())
+        }
+
+        #[ink(message)]
+        #[modifiers(only_role(get_role_admin(self, &role)))]
+        fn revoke_role(
+            &mut self,
+            role: RoleType,
+            account: AccountId,
+        ) -> Result<(), AccessControlError> {
+            check_role(self, &role, &account)?;
+            self._do_revoke_role(role, account);
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn renounce_role(
+            &mut self,
+            role: RoleType,
+            account: AccountId,
+        ) -> Result<(), AccessControlError> {
+            if self._caller() != account {
+                return Err(AccessControlError::InvalidCaller);
+            }
+            check_role(self, &role, &account)?;
+            self._do_revoke_role(role, account);
+            Ok(())
+        }
+    }
+
+    impl AccessControlInternal for MyStable {
+        fn _emit_role_admin_changed(
+            &mut self,
+            _role: RoleType,
+            _previous_admin_role: RoleType,
+            _new_admin_role: RoleType,
+        ) {
+        }
+
+        default fn _emit_role_granted(
+            &mut self,
+            _role: RoleType,
+            _grantee: AccountId,
+            _grantor: Option<AccountId>,
+        ) {
+        }
+
+        default fn _emit_role_revoked(
+            &mut self,
+            _role: RoleType,
+            _account: AccountId,
+            _sender: AccountId,
+        ) {
+        }
+
+        fn _default_admin() -> RoleType {
+            DEFAULT_ADMIN_ROLE
+        }
+
+        fn _init_with_caller(&mut self) {
+            let caller = self._caller();
+            self._init_with_admin(caller);
+        }
+
+        fn _init_with_admin(&mut self, admin: AccountId) {
+            self._setup_role(Self::_default_admin(), admin);
+        }
+
+        fn _setup_role(&mut self, role: RoleType, admin: AccountId) {
+            if !has_role(self, &role, &admin) {
+                self.access.members.insert((&role, &admin), &());
+
+                self._emit_role_granted(role, admin, None);
+            }
+        }
+
+        fn _do_revoke_role(&mut self, role: RoleType, account: AccountId) {
+            self.access.members.remove((&role, &account));
+            self._emit_role_revoked(role, account, self._caller());
+        }
+
+        fn _set_role_admin(&mut self, role: RoleType, new_admin: RoleType) {
+            let mut entry = self.access.admin_roles.get(&role);
+            if entry.is_none() {
+                entry = Some(Self::_default_admin());
+            }
+            let old_admin = entry.unwrap();
+            self.access.admin_roles.insert(&role, &new_admin);
+            self._emit_role_admin_changed(role, old_admin, new_admin);
+        }
+    }
+
+    pub fn check_role<T: AccessControlStorage>(
+        instance: &T,
+        role: &RoleType,
+        account: &AccountId,
+    ) -> Result<(), AccessControlError> {
+        if !has_role(instance, role, account) {
+            return Err(AccessControlError::MissingRole);
+        }
+        Ok(())
+    }
+
+    pub fn has_role<T: AccessControlStorage>(
+        instance: &T,
+        role: &RoleType,
+        account: &AccountId,
+    ) -> bool {
+        instance.get().members.get((role, account)).is_some()
+    }
+
+    pub fn get_role_admin<T: AccessControlStorage>(instance: &T, role: &RoleType) -> RoleType {
+        instance
+            .get()
+            .admin_roles
+            .get(role)
+            .unwrap_or(T::_default_admin())
+    }
 
     impl PSP22 for MyStable {
         #[ink(message)]
@@ -167,6 +378,7 @@ pub mod my_psp22 {
             self._mint(account, amount)
         }
     }
+
     impl PSP22Burnable for MyStable {
         #[ink(message)]
         #[modifiers(only_role(BURNER))]
@@ -174,6 +386,7 @@ pub mod my_psp22 {
             self._mint(account, amount)
         }
     }
+
     impl PSP22Metadata for MyStable {}
 
     impl MyStable {
@@ -194,6 +407,80 @@ pub mod my_psp22 {
                 instance.tax_rate_e18 = 1000001000000000000;
                 instance.tax_last_block = Self::env().block_number() as u128;
                 instance.tax_denom_e18 = E18;
+            })
+        }
+        fn _init_with_owner(&mut self, owner: AccountId) {
+            self.ownable.owner = owner;
+            self._emit_ownership_transferred_event(None, Some(owner));
+        }
+
+        fn _emit_transfer_event(
+            &self,
+            _from: Option<AccountId>,
+            _to: Option<AccountId>,
+            _amount: Balance,
+        ) {
+            Self::env().emit_event(Transfer {
+                from: _from,
+                to: _to,
+                value: _amount,
+            });
+        }
+        fn _emit_approval_event(
+            &self,
+            _owner: Option<AccountId>,
+            _spender: Option<AccountId>,
+            _amount: Balance,
+        ) {
+            Self::env().emit_event(Approval {
+                owner: _owner,
+                spender: _spender,
+                value: _amount,
+            });
+        }
+
+        fn _emit_ownership_transferred_event(
+            &self,
+            _previous_owner: Option<AccountId>,
+            _new_owner: Option<AccountId>,
+        ) {
+            Self::env().emit_event(OwnershipTransferred {
+                previous_owner: _previous_owner,
+                new_owner: _new_owner,
+            })
+        }
+
+        fn _emit_role_admin_changed_event(
+            &mut self,
+            _role: RoleType,
+            _previous_admin_role: RoleType,
+            _new_admin_role: RoleType,
+        ) {
+            Self::env().emit_event(RoleAdminChanged {
+                role: _role,
+                previous_admin_role: _previous_admin_role,
+                new_admin_role: _new_admin_role,
+            })
+        }
+
+        fn _emit_role_granted(
+            &mut self,
+            _role: RoleType,
+            _grantee: AccountId,
+            _grantor: Option<AccountId>,
+        ) {
+            Self::env().emit_event(RoleGranted {
+                role: _role,
+                grantee: _grantee,
+                grantor: _grantor,
+            })
+        }
+
+        fn _emit_role_revoked(&mut self, _role: RoleType, _account: AccountId, _sender: AccountId) {
+            Self::env().emit_event(RoleRevoked {
+                role: _role,
+                account: _account,
+                sender: _sender,
             })
         }
 
@@ -220,10 +507,10 @@ pub mod my_psp22 {
         // }'
 
         fn _block_number(&self) -> u128 {
-            self.env().block_number() as u128
+            Self::env().block_number() as u128
         }
         fn _caller(&self) -> AccountId {
-            self.env().caller()
+            Self::env().caller()
         }
 
         #[ink(message)]
@@ -263,7 +550,7 @@ pub mod my_psp22 {
         }
     }
 
-    pub trait PSP22Internal {
+    pub trait MyStableInternal {
         fn _balance_of(&mut self, owner: &AccountId) -> Balance;
         fn _balance_of_view(&self, owner: &AccountId) -> Balance;
 
@@ -295,7 +582,7 @@ pub mod my_psp22 {
         fn _burn_from(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error>;
     }
 
-    impl PSP22Internal for MyStable {
+    impl MyStableInternal for MyStable {
         fn _balance_of(&mut self, owner: &AccountId) -> Balance {
             if self.is_untaxed.get(owner).unwrap_or(false) {
                 ink_env::debug_println!(
@@ -443,7 +730,7 @@ pub mod my_psp22 {
             }
 
             self.allowances.insert((&owner, &spender), &amount);
-            //self._emit_approval_event(owner, spender, amount);
+            self._emit_approval_event(Some(owner), Some(spender), amount);
             Ok(())
         }
 
@@ -477,7 +764,7 @@ pub mod my_psp22 {
             }
             self.supply += amount;
             // self._after_token_transfer(Some(&account), None, &amount)?;
-            //self._emit_transfer_event(None, Some(account), amount);
+            self._emit_transfer_event(None, Some(account), amount);
             ink_env::debug_println!("MINT | END supply: {}", self.supply);
             Ok(())
         }
@@ -595,19 +882,128 @@ pub mod my_psp22 {
     mod tests {
         use super::*;
         use ink_lang as ink;
+
+        const DECIMALS: u8 = 18;
+
+        // #[ink::test]
+        // fn should_emit_transfer_event_after_mint() {
+        //     // Constructor works.
+        //     let amount_to_mint = 100;
+        //     let accounts = accounts();
+        //     change_caller(accounts.alice);
+        //     let mut psp22 = MyStable::new(None, None, DECIMALS);
+        //     assert!(psp22.setup_role(MINTER, accounts.bob).is_ok());
+
+        //     change_caller(accounts.bob);
+        //     assert!(psp22.mint(accounts.charlie, amount_to_mint).is_ok());
+        //     assert_eq!(psp22.balance_of(accounts.charlie), amount_to_mint);
+        // }
+
+        /// OWNABLE TEST
+
         #[ink::test]
-        fn should_emit_transfer_event_after_mint() {
-            // Constructor works.
-            let amount_to_mint = 100;
-            let decimals = 18;
+        fn constructor_works() {
             let accounts = accounts();
             change_caller(accounts.alice);
-            let mut psp22 = MyStable::new(None, None, decimals);
-            assert!(psp22.setup_role(MINTER, accounts.bob).is_ok());
+            let instance = MyStable::new(None, None, DECIMALS);
 
-            change_caller(accounts.bob);
-            assert!(psp22.mint(accounts.charlie, amount_to_mint).is_ok());
-            assert_eq!(psp22.balance_of(accounts.charlie), amount_to_mint);
+            let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_eq!(2, emitted_events.len());
+
+            assert_ownership_transferred_event(&emitted_events[0], None, Some(instance.owner()))
+        }
+
+        fn assert_ownership_transferred_event(
+            event: &ink_env::test::EmittedEvent,
+            expected_previous_owner: Option<AccountId>,
+            expected_new_owner: Option<AccountId>,
+        ) {
+            let decoded_event = <Event as scale::Decode>::decode(&mut &event.data[..])
+                .expect("encountered invalid contract event data buffer");
+            if let Event::OwnershipTransferred(OwnershipTransferred {
+                previous_owner,
+                new_owner,
+            }) = decoded_event
+            {
+                assert_eq!(
+                    previous_owner, expected_previous_owner,
+                    "Previous owner was not equal to expected previous owner."
+                );
+                assert_eq!(
+                    new_owner, expected_new_owner,
+                    "New owner was not equal to expected new owner."
+                );
+            } else {
+                panic!("encountered unexpected event kind: expected a Transfer event")
+            }
+        }
+
+        #[ink::test]
+        fn owner_works() {
+            let my_ownable = MyStable::new(None, None, DECIMALS);
+            let caller = my_ownable.env().caller();
+            assert_eq!(my_ownable.owner(), caller)
+        }
+
+        #[ink::test]
+        fn renounce_ownership_works() {
+            let mut my_ownable = MyStable::new(None, None, DECIMALS);
+            let caller = my_ownable.env().caller();
+            let creator = my_ownable.owner();
+            assert_eq!(creator, caller);
+            assert!(my_ownable.renounce_ownership().is_ok());
+            assert!(my_ownable.owner().is_zero());
+            let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_eq!(3, emitted_events.len());
+            assert_ownership_transferred_event(&emitted_events[0], None, Some(creator));
+            assert_ownership_transferred_event(&emitted_events[2], Some(creator), None);
+        }
+
+        #[ink::test]
+        fn renounce_ownership_fails() {
+            let mut my_ownable = MyStable::new(None, None, DECIMALS);
+            // Change the caller of `renounce_ownership` method.
+            change_caller(AccountId::from([0x13; 32]));
+            let result = my_ownable.renounce_ownership();
+            assert!(result.is_err());
+            assert_eq!(result, Err(OwnableError::CallerIsNotOwner));
+        }
+
+        #[ink::test]
+        fn transfer_ownership_works() {
+            let mut my_ownable = MyStable::new(None, None, DECIMALS);
+            let caller = my_ownable.env().caller();
+            let creator = my_ownable.owner();
+            assert_eq!(creator, caller);
+            let new_owner = AccountId::from([5u8; 32]);
+            assert!(my_ownable.transfer_ownership(new_owner).is_ok());
+            assert_eq!(my_ownable.owner(), new_owner);
+            let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_eq!(3, emitted_events.len());
+            assert_ownership_transferred_event(&emitted_events[0], None, Some(creator));
+            assert_ownership_transferred_event(&emitted_events[2], Some(creator), Some(new_owner));
+        }
+
+        #[ink::test]
+        fn transfer_ownership_fails() {
+            let mut my_ownable = MyStable::new(None, None, DECIMALS);
+            // Change the caller of `transfer_ownership` method.
+            change_caller(AccountId::from([0x13; 32]));
+            let new_owner = AccountId::from([5u8; 32]);
+            assert_eq!(
+                my_ownable.transfer_ownership(new_owner),
+                Err(OwnableError::CallerIsNotOwner)
+            );
+        }
+
+        #[ink::test]
+        fn transfer_ownership_fails_zero_account() {
+            let mut my_ownable = MyStable::new(None, None, DECIMALS);
+            let new_owner = AccountId::from([0u8; 32]);
+            assert_eq!(
+                my_ownable.transfer_ownership(new_owner),
+                Err(OwnableError::NewOwnerIsZero)
+            );
         }
     }
 }
