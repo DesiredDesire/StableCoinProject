@@ -24,11 +24,6 @@ pub mod my_stable_coin {
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
-    // // for testing
-    // type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
-    // use ink_env::test::DefaultAccounts;
-    // use ink_env::DefaultEnvironment;
-
     const E12: u128 = 1000000000000;
 
     #[ink(storage)]
@@ -546,7 +541,7 @@ pub mod my_stable_coin {
         fn _undivided_taxed_balances(&self, account: AccountId) -> Balance;
         fn _taxed_supply(&mut self) -> Balance;
         fn _taxed_supply_view(&self) -> Balance;
-        fn _switch_is_untaxed(&mut self, account: AccountId);
+        fn _switch_is_untaxed(&mut self, account: AccountId) -> Result<(), PSP22Error>;
         fn _increase_untaxed_balance(&mut self, account: AccountId, amount: Balance);
         fn _decrease_untaxed_balance(
             &mut self,
@@ -635,25 +630,26 @@ pub mod my_stable_coin {
             return self.taxed_supply * E12 / self._tax_denom_e12_view();
         }
 
-        fn _switch_is_untaxed(&mut self, account: AccountId) {
+        fn _switch_is_untaxed(&mut self, account: AccountId) -> Result<(), PSP22Error> {
             if account == self.treassury {
-                return;
+                return Ok(());
             }
             let tax_denom_e12 = self._tax_denom_e12();
             if self.is_untaxed.get(account).unwrap_or_default() {
                 let untaxed_balance: Balance =
                     self.untaxed_balances.get(account).unwrap_or(0) as u128;
-                self._decrease_untaxed_balance(account, untaxed_balance);
+                self._decrease_untaxed_balance(account, untaxed_balance)?;
                 let taxed_balance: Balance = untaxed_balance * tax_denom_e12 / E12;
                 self._increase_taxed_balance(account, taxed_balance);
                 self.is_untaxed.insert(&account, &(false));
             } else {
                 let taxed_balance = self._undivided_taxed_balances(account);
-                self._decrease_taxed_balance(account, taxed_balance);
+                self._decrease_taxed_balance(account, taxed_balance)?;
                 let untaxed_balance = taxed_balance * E12 / tax_denom_e12;
                 self._increase_untaxed_balance(account, untaxed_balance);
                 self.is_untaxed.insert(&account, &(true));
             }
+            return Ok(());
         }
         fn _increase_untaxed_balance(&mut self, account: AccountId, amount: Balance) {
             let balance: Balance = self.untaxed_balances.get(&account).unwrap_or(0);
@@ -778,6 +774,9 @@ pub mod my_stable_coin {
         use super::*;
         use brush::traits::AccountId;
         use ink_lang as ink;
+        type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
+        use ink_env::test::DefaultAccounts;
+        use ink_env::DefaultEnvironment;
 
         const DECIMALS: u8 = 18;
 
@@ -1231,8 +1230,7 @@ pub mod my_stable_coin {
         /// The default constructor does its job.
 
         #[ink::test]
-        fn constructor_works_taxedCoin() {
-            let accounts = accounts();
+        fn constructor_works_taxed_coin() {
             // Constructor works.
             let mut psp22 = MyStable::new(None, None, DECIMALS);
             // Transfer event triggered during initial construction.
@@ -1247,17 +1245,17 @@ pub mod my_stable_coin {
         }
 
         #[ink::test]
-        fn EVENT_transfer_event_is_emited_on_mint() {
+        fn transfer_event_is_emited_on_mint() {
             let accounts = accounts();
             // Constructor works.
             let mut psp22 = MyStable::new(None, None, DECIMALS);
             // grant minter role and mint
-            psp22.grant_role(MINTER, accounts.bob);
+            assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             let mut emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
             assert_eq!(emitted_events.len(), 3);
 
             change_caller(accounts.bob);
-            psp22.mint(accounts.alice, E12);
+            assert!(psp22.mint(accounts.alice, E12).is_ok());
             // Transfer event triggered during initial construction.
             emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
             assert_eq!(emitted_events.len(), 4);
@@ -1270,9 +1268,9 @@ pub mod my_stable_coin {
             // Constructor works.
             let mut psp22 = MyStable::new(None, None, DECIMALS);
             // grant minter role and mint
-            psp22.grant_role(MINTER, accounts.bob);
+            assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
-            psp22.mint(accounts.charlie, E12);
+            assert!(psp22.mint(accounts.charlie, E12).is_ok());
             // Transfer event triggered during initial construction.
             let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
             assert_eq!(emitted_events.len(), 4);
@@ -1289,9 +1287,9 @@ pub mod my_stable_coin {
             // Constructor works.
             let mut psp22 = MyStable::new(None, None, DECIMALS);
             // grant minter role and mint
-            psp22.grant_role(MINTER, accounts.bob);
+            assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
-            psp22.mint(accounts.charlie, E12);
+            assert!(psp22.mint(accounts.charlie, E12).is_ok());
             // Transfer event triggered during initial construction.
             let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
             assert_eq!(emitted_events.len(), 4);
@@ -1332,9 +1330,9 @@ pub mod my_stable_coin {
             // Constructor works.
             let mut psp22 = MyStable::new(None, None, DECIMALS);
             // grant minter role and mint
-            psp22.grant_role(MINTER, accounts.bob);
+            assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
-            psp22.mint(accounts.alice, E12);
+            assert!(psp22.mint(accounts.alice, E12).is_ok());
 
             assert_eq!(psp22.balance_of(accounts.bob), 0);
             assert_eq!(psp22.balance_of(accounts.alice), E12);
@@ -1369,7 +1367,7 @@ pub mod my_stable_coin {
             // Constructor works.
             let mut psp22 = MyStable::new(None, None, DECIMALS);
             // grant minter role and mint
-            psp22.grant_role(MINTER, accounts.bob);
+            assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
             assert_eq!(psp22.balance_of(accounts.bob), 0);
 
@@ -1386,9 +1384,9 @@ pub mod my_stable_coin {
             // Constructor works.
             let mut psp22 = MyStable::new(None, None, DECIMALS);
             // grant minter role and mint
-            psp22.grant_role(MINTER, accounts.bob);
+            assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
-            psp22.mint(accounts.alice, E12);
+            assert!(psp22.mint(accounts.alice, E12).is_ok());
 
             // Bob fails to transfer tokens owned by Alice.
             assert_eq!(
@@ -1403,9 +1401,9 @@ pub mod my_stable_coin {
             // Constructor works.
             let mut psp22 = MyStable::new(None, None, DECIMALS);
             // grant minter role and mint
-            psp22.grant_role(MINTER, accounts.bob);
+            assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
-            psp22.mint(accounts.alice, E12);
+            assert!(psp22.mint(accounts.alice, E12).is_ok());
 
             change_caller(accounts.alice);
             // Alice approves Bob for token transfers on her behalf.
@@ -1441,9 +1439,9 @@ pub mod my_stable_coin {
             // Constructor works.
             let mut psp22 = MyStable::new(None, None, DECIMALS);
             // grant minter role and mint
-            psp22.grant_role(MINTER, accounts.bob);
+            assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
-            psp22.mint(accounts.alice, E12);
+            assert!(psp22.mint(accounts.alice, E12).is_ok());
 
             // Alice approves Bob for token transfers on her behalf.
             let alice_balance = psp22.balance_of(accounts.alice);
