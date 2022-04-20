@@ -24,10 +24,10 @@ pub mod my_stable_coin {
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
-    // // for testing
-    // type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
-    // use ink_env::test::DefaultAccounts;
-    // use ink_env::DefaultEnvironment;
+    // for testing
+    type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
+    use ink_env::test::DefaultAccounts;
+    use ink_env::DefaultEnvironment;
 
     const E12: u128 = 1000000000000;
 
@@ -68,7 +68,6 @@ pub mod my_stable_coin {
             _previous_owner: Option<AccountId>,
             _new_owner: Option<AccountId>,
         ) {
-            ink_env::debug_println!("EMIT OWNERSHIP");
             self.env().emit_event(OwnershipTransferred {
                 previous_owner: _previous_owner,
                 new_owner: _new_owner,
@@ -89,7 +88,6 @@ pub mod my_stable_coin {
             _previous_admin_role: RoleType,
             _new_admin_role: RoleType,
         ) {
-            ink_env::debug_println!("EMIT CHANGED");
             self.env().emit_event(RoleAdminChanged {
                 role: _role,
                 previous_admin_role: _previous_admin_role,
@@ -103,7 +101,6 @@ pub mod my_stable_coin {
             _grantee: AccountId,
             _grantor: Option<AccountId>,
         ) {
-            ink_env::debug_println!("EMIT GRANTED");
             self.env().emit_event(RoleGranted {
                 role: _role,
                 grantee: _grantee,
@@ -112,7 +109,6 @@ pub mod my_stable_coin {
         }
 
         fn _emit_role_revoked(&mut self, _role: RoleType, _account: AccountId, _admin: AccountId) {
-            ink_env::debug_println!("EMIT REVOKE");
             self.env().emit_event(RoleRevoked {
                 role: _role,
                 account: _account,
@@ -129,7 +125,7 @@ pub mod my_stable_coin {
 
         #[ink(message)]
         fn balance_of(&self, owner: AccountId) -> Balance {
-            self._balance_of_view(&owner)
+            self._balance_of(&owner)
         }
 
         #[ink(message)]
@@ -347,7 +343,6 @@ pub mod my_stable_coin {
             _to: Option<AccountId>,
             _amount: Balance,
         ) {
-            ink_env::debug_println!("EMIT_TRANSFER");
             self.env().emit_event(Transfer {
                 from: _from,
                 to: _to,
@@ -355,7 +350,6 @@ pub mod my_stable_coin {
             })
         }
         fn _emit_approval_event(&self, _owner: AccountId, _spender: AccountId, _amount: Balance) {
-            ink_env::debug_println!("EMIT_APPROVAL");
             self.env().emit_event(Approval {
                 owner: _owner,
                 spender: _spender,
@@ -363,7 +357,11 @@ pub mod my_stable_coin {
             })
         }
         fn _balance_of(&self, owner: &AccountId) -> Balance {
-            0
+            if self.is_untaxed.get(owner).unwrap_or(false) {
+                return self.untaxed_balances.get(owner).unwrap_or(0);
+            } else {
+                return self.taxed_balances.get(owner).unwrap_or(0) * E12 / self.tax_denom_e12;
+            }
         }
 
         fn _do_safe_transfer_check(
@@ -412,19 +410,26 @@ pub mod my_stable_coin {
             amount: Balance,
             data: Vec<u8>,
         ) -> Result<(), PSP22Error> {
+            ink_env::debug_println!("_TRANSFER_FROM_TO | START");
             if from.is_zero() {
                 return Err(PSP22Error::ZeroSenderAddress);
             }
             if to.is_zero() {
                 return Err(PSP22Error::ZeroRecipientAddress);
             }
-
-            self._do_safe_transfer_check(&from, &to, &amount, &data)?;
+            ink_env::debug_println!("_TRANSFER_FROM_TO | afer zero check");
+            // self._do_safe_transfer_check(&from, &to, &amount, &data)?;
+            // ink_env::debug_println!("_TRANSFER_FROM_TO | after _do_safe_transfer_check");
 
             let from_untaxed: bool = self.is_untaxed.get(from).unwrap_or_default();
             let to_untaxed: bool = self.is_untaxed.get(to).unwrap_or_default();
             // self._before_token_transfer(Some(&account), None, &amount)?;
-
+            ink_env::debug_println!(
+                "_TRANSFER_FROM_TO | from_bool: {}, to_bool {}",
+                from_untaxed,
+                to_untaxed
+            );
+            self._tax_denom_e12();
             let result;
             if from_untaxed && to_untaxed {
                 result = self._decrease_untaxed_balance(from, amount);
@@ -436,9 +441,17 @@ pub mod my_stable_coin {
                 result = self._decrease_taxed_balance(from, amount);
                 self._increase_untaxed_balance(to, amount);
             } else {
+                ink_env::debug_println!("now decrease");
                 result = self._decrease_taxed_balance(from, amount);
+                ink_env::debug_println!("after decrease:");
                 self._increase_taxed_balance(to, amount);
             }
+            ink_env::debug_println!("_TRANSFER_FROM_TO | after logic");
+            ink_env::debug_println!(
+                "_TRANSFER_FROM_TO | from_balance: {}, to_balance: {}",
+                self.balance_of(from),
+                self.balance_of(to)
+            );
             // self._after_token_transfer(Some(&account), None, &amount)?;
             self._emit_transfer_event(Some(from), Some(to), amount);
             result
@@ -467,6 +480,7 @@ pub mod my_stable_coin {
             }
             // self._before_token_transfer(Some(&account), None, &amount)?;
 
+            self._tax_denom_e12();
             if self.is_untaxed.get(account).unwrap_or_default() {
                 self._increase_untaxed_balance(account, amount);
             } else {
@@ -488,13 +502,7 @@ pub mod my_stable_coin {
             if account.is_zero() {
                 return Err(PSP22Error::ZeroRecipientAddress);
             }
-
-            let mut from_balance = self._my_balance_of(&account);
-
-            if from_balance < amount {
-                return Err(PSP22Error::InsufficientBalance);
-            }
-
+            self._tax_denom_e12();
             let result;
             if self.is_untaxed.get(account).unwrap_or_default() {
                 result = self._decrease_untaxed_balance(account, amount);
@@ -511,8 +519,6 @@ pub mod my_stable_coin {
     }
 
     pub trait MyStableInternals {
-        fn _my_balance_of(&mut self, owner: &AccountId) -> Balance;
-        fn _balance_of_view(&self, owner: &AccountId) -> Balance;
         fn _tax_denom_e12(&mut self) -> u128;
         fn _tax_denom_e12_view(&self) -> u128;
         fn _undivided_taxed_supply(&self) -> Balance;
@@ -535,30 +541,6 @@ pub mod my_stable_coin {
     }
 
     impl MyStableInternals for MyStable {
-        fn _my_balance_of(&mut self, owner: &AccountId) -> Balance {
-            if self.is_untaxed.get(owner).unwrap_or(false) {
-                return self.untaxed_balances.get(owner).unwrap_or(0);
-            } else {
-                return self.taxed_balances.get(owner).unwrap_or(0) * E12 / self._tax_denom_e12();
-            }
-        }
-
-        fn _balance_of_view(&self, owner: &AccountId) -> Balance {
-            if self.is_untaxed.get(owner).unwrap_or(false) {
-                ink_env::debug_println!(
-                    "balance_untaxed: {}",
-                    self.untaxed_balances.get(owner).unwrap_or(0)
-                );
-                return self.untaxed_balances.get(owner).unwrap_or(0);
-            } else {
-                ink_env::debug_println!(
-                    "balance_taxed: {}",
-                    self.taxed_balances.get(owner).unwrap_or(0)
-                );
-                return self.taxed_balances.get(owner).unwrap_or(0) * E12
-                    / self._tax_denom_e12_view();
-            }
-        }
         fn _tax_denom_e12(&mut self) -> u128 {
             //TODO add tests
             let current_block: u128 = self.env().block_number() as u128;
@@ -589,7 +571,7 @@ pub mod my_stable_coin {
             }
 
             ink_env::debug_println!(
-                "TAX_DENOM_START | current_block: {}; uncounted_blocks: {}; current_tax_denom: {}",
+                "TAX_DENOM_END| current_block: {}; uncounted_blocks: {}; current_tax_denom: {}",
                 current_block,
                 uncounted_blocks,
                 self.tax_denom_e12
@@ -633,16 +615,17 @@ pub mod my_stable_coin {
         }
 
         fn _switch_is_untaxed(&mut self, account: AccountId, is_untaxed: bool) {
+            let tax_denom_e12 = self._tax_denom_e12();
             if is_untaxed {
                 let untaxed_balance: Balance =
                     self.untaxed_balances.get(account).unwrap_or(0) as u128;
                 self._decrease_untaxed_balance(account, untaxed_balance);
-                let taxed_balance: Balance = untaxed_balance * self._tax_denom_e12() / E12;
+                let taxed_balance: Balance = untaxed_balance * tax_denom_e12 / E12;
                 self._increase_taxed_balance(account, taxed_balance);
             } else {
                 let taxed_balance = self._undivided_taxed_balances(account);
                 self._decrease_taxed_balance(account, taxed_balance);
-                let untaxed_balance = taxed_balance * E12 / self._tax_denom_e12();
+                let untaxed_balance = taxed_balance * E12 / tax_denom_e12;
                 self._increase_untaxed_balance(account, untaxed_balance);
             }
         }
@@ -666,12 +649,12 @@ pub mod my_stable_coin {
         }
         fn _increase_taxed_balance(&mut self, account: AccountId, amount: Balance) {
             let balance: Balance = self.taxed_balances.get(&account).unwrap_or(0);
-            let multiplied_amount: Balance = amount * self._tax_denom_e12() / E12;
+            let multiplied_amount: Balance = amount * self.tax_denom_e12 / E12;
             ink_env::debug_println!(
                 "increase_taxed_balance | amount {}, multiplied_amount {}, tax_denom: {}, E12: {}",
                 amount,
                 multiplied_amount,
-                self._tax_denom_e12(),
+                self.tax_denom_e12,
                 E12,
             );
             self.taxed_balances
@@ -683,13 +666,19 @@ pub mod my_stable_coin {
             account: AccountId,
             amount: Balance,
         ) -> Result<(), PSP22Error> {
+            ink_env::debug_println!("_DECREASE_TAXED | START");
             let balance: Balance = self.taxed_balances.get(&account).unwrap_or(0);
-            let multiplied_amount: Balance = balance * self._tax_denom_e12() / E12 + 1; // round up
+            let multiplied_amount: Balance = amount * self.tax_denom_e12 / E12 + 1; // round up
             if self._undivided_taxed_balances(account) < multiplied_amount {
                 return Err(PSP22Error::InsufficientBalance);
             }
+            ink_env::debug_println!("_DECREASE_TAXED | before_balance: {}", balance);
             self.taxed_balances
                 .insert(&account, &(balance - multiplied_amount));
+            ink_env::debug_println!(
+                "_DECREASE_TAXED | after_balance: {}",
+                self.taxed_balances.get(&account).unwrap_or(0)
+            );
             self.taxed_supply -= multiplied_amount;
             Ok(())
         }
@@ -1322,24 +1311,26 @@ pub mod my_stable_coin {
             psp22.mint(accounts.alice, E12);
 
             assert_eq!(psp22.balance_of(accounts.bob), 0);
+            assert_eq!(psp22.balance_of(accounts.alice), E12);
             // Alice transfers 10 tokens to Bob.
             change_caller(accounts.alice);
             assert!(psp22.transfer(accounts.bob, 10, Vec::<u8>::new()).is_ok());
             // Bob owns 10 tokens.
             assert_eq!(psp22.balance_of(accounts.bob), 10);
+            assert_eq!(psp22.balance_of(accounts.alice), E12 - 11);
 
             let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
-            assert_eq!(emitted_events.len(), 4);
+            assert_eq!(emitted_events.len(), 5);
             // Check first transfer event related to PSP-20 instantiation.
             assert_transfer_event(
-                &emitted_events[2],
+                &emitted_events[3],
                 None,
                 Some(AccountId::from([0x01; 32])),
                 E12,
             );
             // Check the second transfer event relating to the actual trasfer.
             assert_transfer_event(
-                &emitted_events[3],
+                &emitted_events[4],
                 Some(AccountId::from([0x01; 32])),
                 Some(AccountId::from([0x02; 32])),
                 10,
@@ -1408,7 +1399,7 @@ pub mod my_stable_coin {
 
             // Check all transfer events that happened during the previous calls:
             let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
-            assert_eq!(emitted_events.len(), 6);
+            assert_eq!(emitted_events.len(), 7);
             // The second event `emitted_events[1]` is an Approve event that we skip checking.
             assert_transfer_event(
                 &emitted_events[5],
