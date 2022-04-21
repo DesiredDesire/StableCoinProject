@@ -1336,11 +1336,14 @@ pub mod my_stable {
             assert_eq!(psp22.balance_of(accounts.bob), 0);
             assert_eq!(psp22.balance_of(accounts.alice), E12);
             // Alice transfers 10 tokens to Bob.
+            let amount_to_transfer = 10;
             change_caller(accounts.alice);
-            assert!(psp22.transfer(accounts.bob, 10, Vec::<u8>::new()).is_ok());
+            assert!(psp22
+                .transfer(accounts.bob, amount_to_transfer, Vec::<u8>::new())
+                .is_ok());
             // Bob owns 10 tokens.
-            assert_eq!(psp22.balance_of(accounts.bob), 10);
-            assert_eq!(psp22.balance_of(accounts.alice), E12 - 11);
+            assert_eq!(psp22.balance_of(accounts.bob), amount_to_transfer);
+            assert_eq!(psp22.balance_of(accounts.alice), E12 - amount_to_transfer);
 
             let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
             assert_eq!(emitted_events.len(), 5);
