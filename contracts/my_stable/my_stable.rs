@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(min_specialization)] //false positive - without this attribute contract does not compile
 
 #[brush::contract]
 pub mod my_stable {
