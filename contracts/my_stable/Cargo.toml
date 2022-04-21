@@ -1,5 +1,5 @@
 [package]
-name = "stable_coin_project"
+name = "my_stable"
 version = "0.0.1"
 authors = ["none"]
 edition = "2021"
@@ -19,10 +19,11 @@ scale-info = { version = "2", default-features = false, features = ["derive"], o
 brush = { tag = "v1.6.0", git = "https://github.com/Supercolony-net/openbrush-contracts", default-features = false, features = ["psp22", "ownable","access_control"]}
 
 [lib]
-name = "stable_coin_project"
-path = "lib.rs"
+name = "stable_token"
+path = "my_stable.rs"
 crate-type = [
-    "rlib",
+    # Used for normal contract Wasm blobs.
+    "cdylib",
 ]
 
 [features]
@@ -41,6 +42,11 @@ std = [
     # These dependencies
     "brush/std",
 ]
+ink-as-dependency = []
 
 [profile.dev]
-codegen-units = 16
+codegen-units = 16            # Use slightly better optimizations.
+overflow-checks = false 
+
+[profile.release]
+overflow-checks = false

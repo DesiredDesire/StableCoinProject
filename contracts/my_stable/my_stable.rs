@@ -1,17 +1,14 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-#![feature(min_specialization)]
 
 #[brush::contract]
-pub mod my_stable_coin {
+pub mod my_stable {
 
-    use brush::test_utils::*;
     use brush::{
         contracts::access_control::*,
         contracts::ownable::*,
         contracts::psp22::extensions::burnable::*,
         contracts::psp22::extensions::metadata::*,
         contracts::psp22::extensions::mintable::*,
-        contracts::psp22::*,
         modifiers,
         traits::{AccountIdExt, Flush, ZERO_ADDRESS},
     };
@@ -772,6 +769,7 @@ pub mod my_stable_coin {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use brush::test_utils::{accounts, change_caller};
         use brush::traits::AccountId;
         use ink_lang as ink;
         type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
