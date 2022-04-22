@@ -13,7 +13,7 @@ pub mod stable_coin {
         modifiers,
         traits::{AccountIdExt, Flush},
     };
-    use lending_project::traits::stable_coin::*;
+    use stable_coin_project::traits::stable_coin::*;
 
     use ink_env::{CallFlags, Error as EnvError};
     use ink_lang::codegen::EmitEvent;

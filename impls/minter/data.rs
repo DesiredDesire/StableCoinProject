@@ -4,7 +4,7 @@ pub use crate::traits::minter::*;
 use brush::{declare_storage_trait, traits::AccountId};
 use ink_storage::traits::{SpreadAllocate, SpreadLayout};
 // it is public because when you will import the trait you also will import the derive for the trait
-pub use lending_project_derive::MinterStorage;
+pub use stable_coin_project_derive::MinterStorage;
 
 #[cfg(feature = "std")]
 use ink_storage::traits::StorageLayout;

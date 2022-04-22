@@ -16,7 +16,7 @@ scale = { package = "parity-scale-codec", version = "3", default-features = fals
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
 # These dependencies
-lending_project = { path = "../..", default-features = false }
+stable_coin_project = { path = "../..", default-features = false }
 brush = {  tag = "v1.6.0", git = "https://github.com/Supercolony-net/openbrush-contracts", default-features = false, features = ["psp22"] }
 
 [lib]
@@ -40,7 +40,7 @@ std = [
     "scale-info/std",
 
     # These dependencies
-    "lending_project/std",
+    "stable_coin_project/std",
     "brush/std",
 ]
 ink-as-dependency = []

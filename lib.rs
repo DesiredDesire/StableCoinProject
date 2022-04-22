@@ -3,4 +3,4 @@
 
 pub mod impls;
 pub mod traits;
-pub use lending_project_derive::MinterStorage;
+pub use stable_coin_project_derive::MinterStorage;

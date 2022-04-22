@@ -1,5 +1,5 @@
 [package]
-name = "lending_project_derive"
+name = "stable_coin_project_derive"
 version = "0.0.1"
 authors = [""]
 edition = "2021"
@@ -14,7 +14,7 @@ brush_derive = { tag = "v1.6.0", git = "https://github.com/Supercolony-net/openb
 
 
 [lib]
-name = "lending_project_derive"
+name = "stable_coin_project_derive"
 path = "lib.rs"
 proc-macro = true
 

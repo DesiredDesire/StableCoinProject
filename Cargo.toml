@@ -1,5 +1,5 @@
 [package]
-name = "lending_project"
+name = "stable_coin_project"
 version = "0.0.1"
 authors = [""]
 edition = "2021"
@@ -16,11 +16,11 @@ scale = { package = "parity-scale-codec", version = "3", default-features = fals
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
 # These dependencies
-lending_project_derive = { path = "derive" }
+stable_coin_project_derive = { path = "derive" }
 brush = { tag = "v1.6.0", git = "https://github.com/Supercolony-net/openbrush-contracts", default-features = false, features = ["psp22", "psp34", "ownable", "pausable", "access_control"] }
 
 [lib]
-name = "lending_project"
+name = "stable_coin_project"
 path = "lib.rs"
 crate-type = [
     "rlib",
