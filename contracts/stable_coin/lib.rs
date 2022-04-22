@@ -2,7 +2,7 @@
 #![feature(min_specialization)] //false positive - without this attribute contract does not compile
 
 #[brush::contract]
-pub mod my_stable {
+pub mod stable_coin {
 
     use brush::{
         contracts::access_control::*,
@@ -11,8 +11,9 @@ pub mod my_stable {
         contracts::psp22::extensions::metadata::*,
         contracts::psp22::extensions::mintable::*,
         modifiers,
-        traits::{AccountIdExt, Flush, ZERO_ADDRESS},
+        traits::{AccountIdExt, Flush},
     };
+    use lending_project::traits::stable_coin::*;
 
     use ink_env::{CallFlags, Error as EnvError};
     use ink_lang::codegen::EmitEvent;
@@ -28,7 +29,7 @@ pub mod my_stable {
     #[derive(
         Default, OwnableStorage, SpreadAllocate, PSP22MetadataStorage, AccessControlStorage,
     )]
-    pub struct MyStable {
+    pub struct StableCoinContract {
         #[OwnableStorageField]
         ownable: OwnableData,
         #[PSP22MetadataStorageField]
@@ -55,9 +56,9 @@ pub mod my_stable {
         pub treassury: AccountId,
     }
 
-    impl Ownable for MyStable {}
+    impl Ownable for StableCoinContract {}
 
-    impl OwnableInternal for MyStable {
+    impl OwnableInternal for StableCoinContract {
         fn _emit_ownership_transferred_event(
             &self,
             _previous_owner: Option<AccountId>,
@@ -74,9 +75,9 @@ pub mod my_stable {
     const BURNER: RoleType = ink_lang::selector_id!("BURNER");
     const SETTER: RoleType = ink_lang::selector_id!("SETTER");
 
-    impl AccessControl for MyStable {}
+    impl AccessControl for StableCoinContract {}
 
-    impl AccessControlInternal for MyStable {
+    impl AccessControlInternal for StableCoinContract {
         fn _emit_role_admin_changed(
             &mut self,
             _role: RoleType,
@@ -112,7 +113,7 @@ pub mod my_stable {
         }
     }
 
-    impl PSP22 for MyStable {
+    impl PSP22 for StableCoinContract {
         #[ink(message)]
         fn total_supply(&self) -> Balance {
             self.supply.clone()
@@ -201,7 +202,7 @@ pub mod my_stable {
         }
     }
 
-    impl PSP22Mintable for MyStable {
+    impl PSP22Mintable for StableCoinContract {
         #[ink(message)]
         #[modifiers(only_role(MINTER))]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
@@ -210,7 +211,7 @@ pub mod my_stable {
         }
     }
 
-    impl PSP22Burnable for MyStable {
+    impl PSP22Burnable for StableCoinContract {
         #[ink(message)]
         #[modifiers(only_role(BURNER))]
         fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
@@ -218,9 +219,113 @@ pub mod my_stable {
         }
     }
 
-    impl PSP22Metadata for MyStable {}
+    impl PSP22Metadata for StableCoinContract {}
 
-    impl MyStable {
+    impl PSP22Taxed for StableCoinContract {
+        #[ink(message)]
+        fn get_minter(&self) -> u32 {
+            MINTER
+        }
+        #[ink(message)]
+        fn get_setter(&self) -> u32 {
+            SETTER
+        }
+        #[ink(message)]
+        fn get_burner(&self) -> u32 {
+            BURNER
+        }
+
+        #[ink(message)]
+        fn tax_denom_e12(&mut self) -> Balance {
+            self._tax_denom_e12()
+        }
+
+        #[ink(message)]
+        fn tax_denom_e12_view(&self) -> Balance {
+            self._tax_denom_e12_view()
+        }
+
+        #[ink(message)]
+        fn taxed_supply(&mut self) -> Balance {
+            self._taxed_supply()
+        }
+
+        #[ink(message)]
+        fn taxed_supply_view(&self) -> Balance {
+            self._taxed_supply_view()
+        }
+
+        #[ink(message)]
+        fn untaxed_supply(&self) -> Balance {
+            self.untaxed_supply
+        }
+
+        #[ink(message)]
+        fn undivided_taxed_supply(&self) -> Balance {
+            self._undivided_taxed_supply()
+        }
+
+        #[ink(message)]
+        fn undivided_taxed_balances(&self, account: AccountId) -> Balance {
+            self._undivided_taxed_balances(account)
+        }
+
+        #[ink(message)]
+        #[modifiers(only_role(SETTER))]
+        fn set_is_untaxed(
+            &mut self,
+            account: AccountId,
+            set_to: bool,
+        ) -> Result<(), AccessControlError> {
+            let is_untaxed: bool = self.is_untaxed.get(account).unwrap_or_default();
+            if is_untaxed != set_to {
+                self._switch_is_untaxed(account); //TODO : erroe propagation
+            }
+            Ok(())
+        }
+
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        fn set_role_admin(
+            &mut self,
+            role: RoleType,
+            new_admin: RoleType,
+        ) -> Result<(), PSP22Error> {
+            self._set_role_admin(role, new_admin);
+            Ok(())
+        }
+
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        fn setup_role(
+            &mut self,
+            role: RoleType,
+            new_member: AccountId,
+        ) -> Result<(), OwnableError> {
+            self._setup_role(role, new_member);
+            Ok(())
+        }
+
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        fn change_treassury(&mut self, new_treassury: AccountId) -> Result<(), OwnableError> {
+            let old_treassury = self.treassury;
+            self._switch_is_untaxed(new_treassury); //TODO : erroe propagation
+            self.treassury = new_treassury;
+            self._switch_is_untaxed(old_treassury); //TODO : erroe propagation
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn collect_tax(&mut self) -> Result<(), PSP22Error> {
+            let tax: Balance = self.supply - self.untaxed_supply - self._taxed_supply();
+            self._mint(self.treassury, tax)
+        }
+    }
+
+    impl StableCoinRef for StableCoinContract {}
+
+    impl StableCoinContract {
         #[ink(constructor)]
         pub fn new(name: Option<String>, symbol: Option<String>, decimal: u8) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut Self| {
@@ -248,109 +353,9 @@ pub mod my_stable {
             self.ownable.owner = owner;
             self._emit_ownership_transferred_event(None, Some(owner));
         }
-
-        #[ink(message)]
-        pub fn get_minter(&self) -> u32 {
-            MINTER
-        }
-        #[ink(message)]
-        pub fn get_setter(&self) -> u32 {
-            SETTER
-        }
-        #[ink(message)]
-        pub fn get_burner(&self) -> u32 {
-            BURNER
-        }
-
-        #[ink(message)]
-        pub fn tax_denom_e12(&mut self) -> Balance {
-            self._tax_denom_e12()
-        }
-
-        #[ink(message)]
-        pub fn tax_denom_e12_view(&self) -> Balance {
-            self._tax_denom_e12_view()
-        }
-
-        #[ink(message)]
-        pub fn taxed_supply(&mut self) -> Balance {
-            self._taxed_supply()
-        }
-
-        #[ink(message)]
-        pub fn taxed_supply_view(&self) -> Balance {
-            self._taxed_supply_view()
-        }
-
-        #[ink(message)]
-        pub fn untaxed_supply(&self) -> Balance {
-            self.untaxed_supply
-        }
-
-        #[ink(message)]
-        pub fn undivided_taxed_supply(&self) -> Balance {
-            self._undivided_taxed_supply()
-        }
-
-        #[ink(message)]
-        pub fn undivided_taxed_balances(&self, account: AccountId) -> Balance {
-            self._undivided_taxed_balances(account)
-        }
-
-        #[ink(message)]
-        #[modifiers(only_role(SETTER))]
-        pub fn set_is_untaxed(
-            &mut self,
-            account: AccountId,
-            set_to: bool,
-        ) -> Result<(), AccessControlError> {
-            let is_untaxed: bool = self.is_untaxed.get(account).unwrap_or_default();
-            if is_untaxed != set_to {
-                self._switch_is_untaxed(account);
-            }
-            Ok(())
-        }
-
-        #[ink(message)]
-        #[modifiers(only_owner)]
-        pub fn set_role_admin(
-            &mut self,
-            role: RoleType,
-            new_admin: RoleType,
-        ) -> Result<(), PSP22Error> {
-            self._set_role_admin(role, new_admin);
-            Ok(())
-        }
-
-        #[ink(message)]
-        #[modifiers(only_owner)]
-        pub fn setup_role(
-            &mut self,
-            role: RoleType,
-            new_member: AccountId,
-        ) -> Result<(), OwnableError> {
-            self._setup_role(role, new_member);
-            Ok(())
-        }
-
-        #[ink(message)]
-        #[modifiers(only_owner)]
-        pub fn change_treassury(&mut self, new_treassury: AccountId) -> Result<(), OwnableError> {
-            let old_treassury = self.treassury;
-            self._switch_is_untaxed(new_treassury);
-            self.treassury = new_treassury;
-            self._switch_is_untaxed(old_treassury);
-            Ok(())
-        }
-
-        #[ink(message)]
-        pub fn collect_tax(&mut self) -> Result<(), PSP22Error> {
-            let tax: Balance = self.supply - self.untaxed_supply - self._taxed_supply();
-            self._mint(self.treassury, tax)
-        }
     }
 
-    impl PSP22Internal for MyStable {
+    impl PSP22Internal for StableCoinContract {
         fn _emit_transfer_event(
             &self,
             _from: Option<AccountId>,
@@ -532,7 +537,7 @@ pub mod my_stable {
         }
     }
 
-    pub trait MyStableInternals {
+    pub trait TaxedInternals {
         fn _tax_denom_e12(&mut self) -> u128;
         fn _tax_denom_e12_view(&self) -> u128;
         fn _undivided_taxed_supply(&self) -> Balance;
@@ -554,7 +559,7 @@ pub mod my_stable {
         ) -> Result<(), PSP22Error>;
     }
 
-    impl MyStableInternals for MyStable {
+    impl TaxedInternals for StableCoinContract {
         fn _tax_denom_e12(&mut self) -> u128 {
             //TODO add tests
             let current_block: u128 = self.env().block_number() as u128;
