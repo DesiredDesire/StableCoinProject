@@ -1,5 +1,5 @@
 use brush::{
-    contracts::traits::pausable::*,
+    contracts::{psp22::PSP22Error, traits::pausable::*},
     traits::{AccountId, Balance},
 };
 
@@ -23,10 +23,17 @@ pub enum MinterError {
     PausableError(PausableError),
 
     CouldntMint,
+    PSP22Error(PSP22Error),
 }
 
 impl From<PausableError> for MinterError {
     fn from(error: PausableError) -> Self {
         MinterError::PausableError(error)
+    }
+}
+
+impl From<PSP22Error> for MinterError {
+    fn from(error: PSP22Error) -> Self {
+        MinterError::PSP22Error(error)
     }
 }

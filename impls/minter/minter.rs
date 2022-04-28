@@ -11,7 +11,9 @@ impl<T: MinterStorage + PausableStorage> Minter for T {
     #[modifiers(when_not_paused)]
     default fn mint(&mut self, to: AccountId, amount: Balance) -> Result<(), MinterError> {
         let minted_token_address = MinterStorage::get(self).minted_token_address;
-        StableCoinContractRef::mint(&minted_token_address, to, amount);
-        Ok(())
+        match StableCoinContractRef::mint(&minted_token_address, to, amount) {
+            Ok(r) => Ok(r),
+            Err(e) => Err(MinterError::from(e)),
+        }
     }
 }
