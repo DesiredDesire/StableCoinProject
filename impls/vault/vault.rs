@@ -42,3 +42,12 @@ impl<T: VaultStorage + PSP34Storage> Vault for T {
 
     default fn buy_risky_vault(&mut self, vault_id: Id) -> () {}
 }
+
+impl<T: VaultStorage + PSP34Storage> VaultInternal for T {
+    fn _collateral_of(&self, vault_id: &Id) -> Balance {
+        VaultStorage::get(self)
+            .collateral_by_id
+            .get(vault_id)
+            .unwrap_or(0)
+    }
+}

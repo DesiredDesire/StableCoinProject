@@ -18,11 +18,11 @@ pub type VaultRef = dyn Vault;
 #[brush::trait_definition]
 pub trait Vault {
     #[ink(message)]
+    fn create_vault(&mut self) -> Result<Id, VaultError>;
+    #[ink(message)]
     fn deposit(&mut self, amount: Balance) -> Result<(), VaultError>;
     #[ink(message)]
     fn withdraw(&mut self, amount: Balance) -> Result<(), VaultError>;
-    #[ink(message)]
-    fn create_vault(&mut self) -> Result<Id, VaultError>;
     #[ink(message)]
     fn get_debt_ceiling(&mut self) -> Balance;
     #[ink(message)]
@@ -39,6 +39,9 @@ pub trait Vault {
     fn pay_back_token(&mut self, vault_id: Id, amount: Balance) -> ();
     #[ink(message)]
     fn buy_risky_vault(&mut self, vault_id: Id) -> ();
+}
+pub trait VaultInternal {
+    fn _collateral_of(&self, vault_id: &Id) -> Balance;
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -59,7 +62,10 @@ pub enum CollateralError {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum VaultError {
     CollateralError(CollateralError),
-    NonExistingVaultError,
+    Unexists,
+    Exists,
+    HasDebt,
+    NotEmpty,
     VaultOwnershipError,
     WithdrawError(WithdrawError),
     DepositError,

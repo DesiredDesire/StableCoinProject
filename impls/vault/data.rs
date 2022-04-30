@@ -3,6 +3,7 @@ use brush::{contracts::psp34::*, declare_storage_trait, traits::AccountId};
 use ink_primitives::{Key, KeyPtr};
 use ink_storage::traits::{PackedLayout, SpreadAllocate, SpreadLayout};
 // it is public because when you will import the trait you also will import the derive for the trait
+use brush::traits::Balance;
 pub use stable_coin_project_derive::VaultStorage;
 
 #[cfg(feature = "std")]
@@ -44,8 +45,10 @@ impl SpreadLayout for SingleVaultData {
 /// define the struct with the data that our smart contract will be using
 /// this will isolate the logic of our smart contract from its storage
 pub struct VaultData {
-    pub vault_data_by_id: Mapping<Id, SingleVaultData>,
+    pub collateral_by_id: Mapping<Id, Balance>,
+    pub debt_by_id: Mapping<Id, Balance>,
     pub collaterall_token_address: AccountId,
+    pub minimumCollateralPercentage: u128,
 }
 
 declare_storage_trait!(VaultStorage, VaultData);
