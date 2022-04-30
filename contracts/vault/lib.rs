@@ -3,13 +3,20 @@
 
 #[brush::contract]
 pub mod vault {
-    use brush::contracts::psp22::*;
-    use brush::{contracts::pausable::*, contracts::psp34::*};
+    use brush::{
+        contracts::pausable::*, contracts::psp22::*, contracts::psp34::*, modifier_definition,
+        modifiers, traits::Flush,
+    };
     use ink_lang::codegen::Env;
+    use ink_prelude::vec::Vec;
     use ink_storage::traits::SpreadAllocate;
-    use psp34::extensions::{burnable::*, metadata::*, mintable::*};
+    use ink_storage::Mapping;
+    use psp34::extensions::{burnable::*, mintable::*};
     use stable_coin_project::impls::emiting::*;
     use stable_coin_project::traits::vault::*;
+
+    const e4: u128 = 10000;
+    const e6: u128 = 1000000;
 
     #[ink(storage)]
     #[derive(Default, SpreadAllocate, PSP34Storage, PausableStorage, EmitingStorage)]
@@ -21,112 +28,189 @@ pub mod vault {
         #[PSP34StorageField]
         psp34: PSP34Data,
 
-        pub collateral_by_id: Mapping<Id, Balance>,
-        pub debt_by_id: Mapping<Id, Balance>,
+        pub collateral_by_id: Mapping<u128, Balance>,
+        pub debt_by_id: Mapping<u128, Balance>,
         pub collaterall_token_address: AccountId,
-        pub minimum_collateral_prcentage: u128,
+        pub minimum_collateral_percentage_e4: u128,
+        pub last_collateral_price: u128,
         pub next_id: u128,
-        pub minimum_collateral_percentage: u128,
     }
 
     impl PSP34 for VaultContract {}
+    impl PSP34Internal for VaultContract {}
     impl Emiting for VaultContract {}
-    impl VaultInternal for VaultContract {}
 
     impl Vault for VaultContract {
         #[ink(message)]
-        fn create_vault(&mut self) -> Result<Id, VaultError> {
+        fn create_vault(&mut self) -> Result<(), VaultError> {
             let caller = self.env().caller();
-            self._mint_to(caller, Id::U128(self.next_id))?;
+            let next_id = self.next_id;
+            self._mint_to(caller, Id::U128(next_id))?;
             self.next_id += 1;
-            Ok(Id::U128(self.next_id))
+            Ok(())
             //TODO EMIT EVENT - PSP34::mint will emit event => TODO implement PSP34 event
         }
         #[ink(message)]
-        fn destroy_vault(&mut self, vault_id: Id) -> Result<(), VaultError> {
-            //let vault_data = self._get_caller_vault_by_id(&vault_id)?;
-            let owner_account_id: AccountId = self.owner_of(vault_id).unwrap_or_default();
+        fn destroy_vault(&mut self, vault_id: u128) -> Result<(), VaultError> {
+            let owner_account_id: AccountId = self.owner_of(Id::U128(vault_id)).unwrap_or_default();
             if self.env().caller() != owner_account_id {
-                return Err(VaultError::VaultOwnershipError);
+                return Err(VaultError::VaultOwnership);
             }
 
-            if self.vault.debt_by_id.get(vault_id).unwrap_or(1) != 0 {
+            if self.debt_by_id.get(vault_id).unwrap_or(1) != 0 {
                 return Err(VaultError::HasDebt);
             }
-            if self.vault.collateral_by_id.get(vault_id).unwrap_or(1) != 0 {
+            if self.collateral_by_id.get(vault_id).unwrap_or(1) != 0 {
                 return Err(VaultError::NotEmpty);
             }
-            self._burn_from(owner_account_id, vault_id);
+            self._burn_from(owner_account_id, Id::U128(vault_id));
             Ok(())
             //TODO EMIT EVENT - PSP34::burn will emit event => TODO implement PSP34 event
         }
 
         #[ink(message)]
-        fn deposit_collateral(&mut self, vault_id: Id, amount: Balance) -> Result<(), VaultError> {
-            let owner_account_id: AccountId = self.owner_of(vault_id).unwrap_or_default();
+        fn deposit_collateral(
+            &mut self,
+            vault_id: u128,
+            amount: Balance,
+        ) -> Result<(), VaultError> {
+            let owner_account_id: AccountId = self.owner_of(Id::U128(vault_id)).unwrap_or_default();
             if self.env().caller() != owner_account_id {
-                return Err(VaultError::VaultOwnershipError);
+                return Err(VaultError::VaultOwnership);
             }
-            // // PSP22Ref::transfer_from(
-            // //     &(self.vault.collaterall_token_address),
-            // //     caller,
-            // //     self.env().account_id(),
-            // //     amount,
-            // //     Vec::<u8>::new(),
-            // // )?;
-            // let current_collateral = self._collateral_of(&vault_id).unwrap_or(0);
-            // self.vault
-            //     .collateral_by_id
-            //     .insert(&vault_id, &(current_collateral + amount));
+
+            if let Err(err) = PSP22Ref::transfer_from(
+                &self.collaterall_token_address,
+                owner_account_id,
+                self.env().account_id(),
+                amount,
+                Vec::<u8>::new(),
+            ) {
+                return Err(From::from(err));
+            }
+            //TODO EMIT EVENT
             Ok(())
         }
 
         #[ink(message)]
-        fn withdraw_collateral(&mut self, vault_id: Id, amount: Balance) -> Result<(), VaultError> {
-            let owner_account_id: AccountId = self.owner_of(vault_id).unwrap_or_default();
+        fn withdraw_collateral(
+            &mut self,
+            vault_id: u128,
+            amount: Balance,
+        ) -> Result<(), VaultError> {
+            let owner_account_id: AccountId = self.owner_of(Id::U128(vault_id)).unwrap_or_default();
             if self.env().caller() != owner_account_id {
-                return Err(VaultError::VaultOwnershipError);
+                return Err(VaultError::VaultOwnership);
             }
-            // let contract = self.env().account_id();
-            // let collateral_address = self.vault.collaterall_token_address;
-            // let vault_collateral = self.vault.collateral_by_id.get(&vault_id).unwrap_or(0);
-            // let vault_debt = self.vault.debt_by_id.get(&vault_id).unwrap_or(0); //TODO if we set 0 and the true debt is > 0 it is a BIG PROBLEM
-            // let collateral_after = vault_collateral - amount;
-            // match self._before_collateral_withdrawal(collateral_after, vault_debt) {
-            //     Ok(v) => (),
-            //     Err(e) => {
-            //         return Err(VaultError::from(e));
-            //     }
-            // };
-            // //TODO EMIT EVENT
-            // match PSP22Ref::transfer_from(
-            //     &(collateral_address),
-            //     self.env().account_id(),
-            //     self.env().caller(),
-            //     amount,
-            //     Vec::<u8>::new(),
-            // ) {
-            //     Ok(v) => (),
-            //     Err(e) => {
-            //         return Err(VaultError::from(e));
-            //     }
-            // };
+            let contract = self.env().account_id();
+            let collateral_address = self.collaterall_token_address;
+            let vault_collateral = self.collateral_by_id.get(&vault_id).unwrap_or(0);
+            let vault_debt = self.debt_by_id.get(&vault_id).unwrap_or(0); //TODO if we set 0 and the true debt is > 0 it is a BIG PROBLEM
+            let collateral_after = vault_collateral - amount;
+            match self._check_collateral(collateral_after, vault_debt) {
+                Ok(v) => (),
+                Err(e) => {
+                    return Err(VaultError::from(e));
+                }
+            };
+            //TODO EMIT EVENT
+            match PSP22Ref::transfer_from(
+                &(collateral_address),
+                self.env().account_id(),
+                self.env().caller(),
+                amount,
+                Vec::<u8>::new(),
+            ) {
+                Ok(v) => (),
+                Err(e) => {
+                    return Err(VaultError::from(e));
+                }
+            };
 
             Ok(())
         }
 
         #[ink(message)]
-        fn get_debt_ceiling(&mut self) -> Balance {
-            //TODO dynamic or static debt ceiling?
-            0
+        fn get_debt_ceiling(&mut self, vault_id: u128) -> Result<Balance, VaultError> {
+            match self._vault_collateral_value_e6_view(vault_id) {
+                Ok(v) => return Ok(v * e4 / self.minimum_collateral_percentage_e4),
+                Err(e) => {
+                    return Err(e);
+                }
+            }
         }
 
         #[ink(message)]
-        fn borrow_token(&mut self, vault_id: Id, amount: Balance) -> () {}
+        fn borrow_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError> {
+            //WORKING HERE
+            Ok(())
+        }
         #[ink(message)]
-        fn pay_back_token(&mut self, vault_id: Id, amount: Balance) -> () {}
+        fn pay_back_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError> {
+            Ok(())
+        }
         #[ink(message)]
-        fn buy_risky_vault(&mut self, vault_id: Id) -> () {}
+        fn buy_risky_vault(&mut self, vault_id: u128) -> () {}
+    }
+
+    impl VaultInternal for VaultContract {
+        fn _check_collateral(
+            &mut self,
+            collateral: Balance,
+            debt: Balance,
+        ) -> Result<(), VaultError> {
+            let collateral_value_e6 = match self._collateral_value_e6(collateral) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(e);
+                }
+            };
+            let collateralPercentage = collateral_value_e6 / debt;
+
+            if collateralPercentage >= self.minimum_collateral_percentage_e4 {
+                return Err(VaultError::CollateralBelowMinimumPercentage);
+            }
+            Ok(())
+        }
+
+        fn _collateral_value_e6(&mut self, collateral: Balance) -> Result<Balance, VaultError> {
+            let collateral_price_e6 = match self._update_collateral_price() {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(e);
+                }
+            };
+            Ok(collateral * collateral_price_e6)
+        }
+
+        fn _collateral_value_e6_view(&self, collateral: Balance) -> Result<Balance, VaultError> {
+            let collateral_price_e6 = match self._get_collateral_price() {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(e);
+                }
+            };
+            Ok(collateral * collateral_price_e6)
+        }
+
+        fn _vault_collateral_value_e6(&mut self, value_id: u128) -> Result<Balance, VaultError> {
+            let collateral = self.collateral_by_id.get(&value_id).unwrap_or(0);
+            self._collateral_value_e6(collateral)
+        }
+
+        fn _vault_collateral_value_e6_view(&self, value_id: u128) -> Result<Balance, VaultError> {
+            let collateral = self.collateral_by_id.get(&value_id).unwrap_or(0);
+            self._collateral_value_e6_view(collateral)
+        }
+
+        fn _update_collateral_price(&mut self) -> Result<u128, VaultError> {
+            self.last_collateral_price = 100000;
+            Ok(1000000)
+        }
+
+        fn _get_collateral_price(&self) -> Result<u128, VaultError> {
+            Ok(1000000)
+        }
     }
 
     impl VaultContract {
@@ -134,18 +218,18 @@ pub mod vault {
         pub fn new(
             collaterall_token_address: AccountId,
             minted_token_address: AccountId,
-            minimum_collateral_prcentage: u128,
+            minimum_collateral_percentage_e4: u128,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
-                instance.vault.collaterall_token_address = collaterall_token_address;
-                instance.minting.minted_token_address = minted_token_address;
-                instance.vault.minimum_collateral_prcentage = minimum_collateral_prcentage;
+                instance.collaterall_token_address = collaterall_token_address;
+                instance.emit.emited_token_address = minted_token_address;
+                instance.minimum_collateral_percentage_e4 = minimum_collateral_percentage_e4;
             })
         }
         // fn _get_caller_vault_by_id(vault_id: Id) -> Result<SingleVaultData, VaultError> {
         //     let vault_data = self
-        //         .vault
-        //         .vault_data_by_id
+        //
+        //         _data_by_id
         //         .get(&vault_id)
         //         .ok_or(VaultError::NonExistingVaultError)?;
         //     let owner_account_id = self.owner_of(&vault_id);
@@ -176,7 +260,7 @@ pub mod vault {
 
         //     let collateralPercentage = collateral_value_e6 / debt;
 
-        //     if collateralPercentage >= self.vault.minimum_collateral_prcentage {
+        //     if collateralPercentage >= self.minimum_collateral_prcentage {
         //         return Err(CollateralError::CollateralBelowMinimumPercentageError);
         //     }
         //     Ok(())

@@ -5,4 +5,4 @@ extern crate proc_macro;
 use brush_derive::declare_derive_storage_trait;
 
 declare_derive_storage_trait!(derive_minter_storage, MinterStorage, MinterStorageField);
-declare_derive_storage_trait!(derive_vault_storage, VaultStorage, VaultStorageField);
+declare_derive_storage_trait!(derive_emiting_storage, EmitingStorage, EmitingStorageField);

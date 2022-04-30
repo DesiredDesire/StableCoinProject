@@ -1,2 +1,2 @@
+pub mod emiting;
 pub mod minter;
-pub mod vault;
