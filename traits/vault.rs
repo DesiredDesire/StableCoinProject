@@ -1,6 +1,7 @@
 use brush::{
     contracts::{
-        pausable::PausableError, psp22::PSP22Error, psp34::PSP34Error, traits::pausable::*,
+        ownable::OwnableError, pausable::PausableError, psp22::PSP22Error, psp34::PSP34Error,
+        traits::pausable::*,
     },
     traits::Balance,
 };
@@ -42,22 +43,7 @@ pub trait VaultInternal {
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub enum WithdrawError {
-    InsufficientCollateralError,
-    CollateralCriticalAmountError,
-}
-
-#[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub enum CollateralError {
-    PriceEqualsZeroError,
-    CollateralBelowMinimumPercentageError,
-}
-
-#[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum VaultError {
-    CollateralError(CollateralError),
     Unexists,
     Exists,
     HasDebt,
@@ -65,11 +51,11 @@ pub enum VaultError {
     VaultOwnership,
     CollateralBelowMinimum,
     CollateralAboveMinimum,
-    WithdrawError(WithdrawError),
     DepositError,
     PSP34Error(PSP34Error),
     PSP22Error(PSP22Error),
     PausableError(PausableError),
+    OwnableError(OwnableError),
     EmitingError(EmitingError),
 }
 
@@ -79,32 +65,26 @@ impl From<PSP34Error> for VaultError {
     }
 }
 
-impl From<PausableError> for VaultError {
-    fn from(error: PausableError) -> Self {
-        VaultError::PausableError(error)
-    }
-}
-
 impl From<PSP22Error> for VaultError {
     fn from(error: PSP22Error) -> Self {
         VaultError::PSP22Error(error)
     }
 }
 
+impl From<OwnableError> for VaultError {
+    fn from(error: OwnableError) -> Self {
+        VaultError::OwnableError(error)
+    }
+}
+
+impl From<PausableError> for VaultError {
+    fn from(error: PausableError) -> Self {
+        VaultError::PausableError(error)
+    }
+}
+
 impl From<EmitingError> for VaultError {
     fn from(error: EmitingError) -> Self {
         VaultError::EmitingError(error)
-    }
-}
-
-impl From<WithdrawError> for VaultError {
-    fn from(error: WithdrawError) -> Self {
-        VaultError::WithdrawError(error)
-    }
-}
-
-impl From<CollateralError> for VaultError {
-    fn from(error: CollateralError) -> Self {
-        VaultError::CollateralError(error)
     }
 }

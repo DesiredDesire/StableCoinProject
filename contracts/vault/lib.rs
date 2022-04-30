@@ -3,9 +3,10 @@
 
 #[brush::contract]
 pub mod vault {
+    //TODO oprocentowanie debt
     use brush::{
         contracts::ownable::*, contracts::pausable::*, contracts::psp22::extensions::burnable::*,
-        contracts::psp22::extensions::mintable::*, contracts::psp34::*,
+        contracts::psp22::extensions::mintable::*, contracts::psp34::*, modifiers,
     };
     use ink_lang::codegen::Env;
     use ink_prelude::vec::Vec;
@@ -289,64 +290,10 @@ pub mod vault {
                 instance.minimum_collateral_coefficient_e6 = minimum_collateral_coefficient_e6;
             })
         }
-        // fn _get_caller_vault_by_id(vault_id: Id) -> Result<SingleVaultData, VaultError> {
-        //     let vault_data = self
-        //
-        //         _data_by_id
-        //         .get(&vault_id)
-        //         .ok_or(VaultError::NonExistingVaultError)?;
-        //     let vault_owner = self.owner_of(&vault_id);
-        //     if vault_owner.unwrap_or_default() != self.env().caller() {
-        //         return Err(VaultError::VaultOwnershipError);
-        //     }
-        // }
-
-        // COLLATERALL IS NOT MINTED. STABLE COIN IS MINTED
-        // fn _mint_collateral_if_not_zero(
-        //     collateral: u128,
-        //     to: AccountId,
-        // ) -> Result<(), EmitingError> {
-        //     if collateral != 0 {
-        //         self::Emiting::mint(&to, collateral)?;
-        //     }
-        //     Ok(())
-        // }
-
-        // fn _check_debt_collateral(
-        //     &mut self,
-        //     collateral: Balance,
-        //     debt: Balance,
-        // ) -> Result<(), CollateralError> {
-        //     let collateral_value_e6 = self
-        //         ._calculate_collateral_value_e6(collateral)
-        //         .unwrap_or(0)?; //TODO propagate error
-
-        //     let collateralPercentage = collateral_value_e6 / debt;
-
-        //     if collateralPercentage >= self.minimum_collateral_prcentage {
-        //         return Err(CollateralError::CollateralBelowMinimumError);
-        //     }
-        //     Ok(())
-        // }
-
-        // fn _calculate_collateral_value_e6(
-        //     &mut self,
-        //     collateral: Balance,
-        // ) -> Result<Balance, CollateralError> {
-        //     let collateral_price_e6 = self.get_eth_price_source(); // assuming that price is multiplied by 10^6. If price is 1.01 then we get 1010000
-        //     if collateral_price_e6 == 0 {
-        //         return Err(CollateralError::PriceEqualsZeroError);
-        //     }
-        //     Ok(collateral * collateral_price_e6)
-        // }
-
-        // // fn get_token_price_source(&mut self) -> Balance {
-        // //     self.token_peg
-        // // }
-
-        // fn get_eth_price_source(&mut self) -> Balance {
-        //     //TODO get from oracle
-        //     0
-        // }
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        pub fn pause(&mut self) -> Result<(), VaultError> {
+            self._pause()
+        }
     }
 }
