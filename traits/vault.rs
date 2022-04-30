@@ -23,22 +23,19 @@ pub trait Vault {
     #[ink(message)]
     fn withdraw_collateral(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError>;
     #[ink(message)]
-    fn get_debt_ceiling(&mut self, vault_id: u128) -> Result<Balance, VaultError>;
+    fn get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError>;
     #[ink(message)]
     fn borrow_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError>;
     #[ink(message)]
     fn pay_back_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError>;
     #[ink(message)]
-    fn buy_risky_vault(&mut self, vault_id: u128) -> ();
+    fn buy_risky_vault(&mut self, vault_id: u128) -> Result<(), VaultError>;
 }
 pub trait VaultInternal {
-    fn _check_collateral(&mut self, collateral: Balance, debt: Balance) -> Result<(), VaultError>;
-    fn _collateral_value_e6(&mut self, collateral: Balance) -> Result<Balance, VaultError>;
-    fn _collateral_value_e6_view(&self, collateral: Balance) -> Result<Balance, VaultError>;
-    fn _vault_collateral_value_e6(&mut self, value_id: u128) -> Result<Balance, VaultError>;
-    fn _vault_collateral_value_e6_view(&self, value_id: u128) -> Result<Balance, VaultError>;
-    fn _update_collateral_price(&mut self) -> Result<u128, VaultError>;
-    fn _get_collateral_price(&self) -> Result<u128, VaultError>;
+    fn _get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError>;
+    fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError>;
+    fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError>;
+    fn _get_collateral_price_e6(&self) -> Result<u128, VaultError>;
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -64,7 +61,8 @@ pub enum VaultError {
     HasDebt,
     NotEmpty,
     VaultOwnership,
-    CollateralBelowMinimumPercentage,
+    CollateralBelowMinimum,
+    CollateralAboveMinimum,
     WithdrawError(WithdrawError),
     DepositError,
     PSP34Error(PSP34Error),
