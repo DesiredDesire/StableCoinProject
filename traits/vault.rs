@@ -1,5 +1,7 @@
 use brush::{
-    contracts::{psp22::PSP22Error, psp34::PSP34Error, traits::pausable::*},
+    contracts::{
+        pausable::PausableError, psp22::PSP22Error, psp34::PSP34Error, traits::pausable::*,
+    },
     traits::Balance,
 };
 
@@ -67,12 +69,19 @@ pub enum VaultError {
     DepositError,
     PSP34Error(PSP34Error),
     PSP22Error(PSP22Error),
+    PausableError(PausableError),
     EmitingError(EmitingError),
 }
 
 impl From<PSP34Error> for VaultError {
     fn from(error: PSP34Error) -> Self {
         VaultError::PSP34Error(error)
+    }
+}
+
+impl From<PausableError> for VaultError {
+    fn from(error: PausableError) -> Self {
+        VaultError::PausableError(error)
     }
 }
 

@@ -4,34 +4,45 @@
 #[brush::contract]
 pub mod vault {
     use brush::{
-        contracts::pausable::*, contracts::psp22::extensions::burnable::*,
-        contracts::psp22::extensions::mintable::*, contracts::psp22::*, contracts::psp34::*,
-        modifier_definition, modifiers, traits::Flush,
+        contracts::ownable::*, contracts::pausable::*, contracts::psp22::extensions::burnable::*,
+        contracts::psp22::extensions::mintable::*, contracts::psp34::*,
     };
     use ink_lang::codegen::Env;
     use ink_prelude::vec::Vec;
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
-    use psp34::extensions::{burnable::*, mintable::*};
+    use stable_coin_project::impls::eating::*;
     use stable_coin_project::impls::emiting::*;
+    use stable_coin_project::traits::eating::*;
     use stable_coin_project::traits::vault::*;
 
-    const e4: u128 = 10000;
-    const e6: u128 = 1000000;
     const U128MAX: u128 = 340282366920938463463374607431768211455;
 
     #[ink(storage)]
-    #[derive(Default, SpreadAllocate, PSP34Storage, PausableStorage, EmitingStorage)]
+    #[derive(
+        Default,
+        SpreadAllocate,
+        PSP34Storage,
+        PausableStorage,
+        EmitingStorage,
+        EatingStorage,
+        OwnableStorage,
+    )]
     pub struct VaultContract {
+        #[OwnableStorageField]
+        ownable: OwnableData,
         #[PausableStorageField]
         pause: PausableData,
         #[EmitingStorageField]
         emit: EmitingData,
         #[PSP34StorageField]
         psp34: PSP34Data,
+        #[EatingStorageField]
+        eat: EatingData,
 
         pub collateral_by_id: Mapping<u128, Balance>,
         pub debt_by_id: Mapping<u128, Balance>,
+        pub price_feed_address: AccountId,
         pub collaterall_token_address: AccountId,
         pub stable_coin_token_address: AccountId,
         pub minimum_collateral_coefficient_e6: u128,
@@ -42,6 +53,7 @@ pub mod vault {
     impl PSP34 for VaultContract {}
     impl PSP34Internal for VaultContract {}
     impl Emiting for VaultContract {}
+    impl Eating for VaultContract {}
 
     impl Vault for VaultContract {
         #[ink(message)]
@@ -66,7 +78,7 @@ pub mod vault {
             if self.collateral_by_id.get(vault_id).unwrap_or(1) != 0 {
                 return Err(VaultError::NotEmpty);
             }
-            self._burn_from(vault_owner, Id::U128(vault_id));
+            self._burn_from(vault_owner, Id::U128(vault_id))?;
             Ok(())
             //TODO EMIT EVENT - PSP34::burn will emit event => TODO implement PSP34 event
         }
@@ -118,12 +130,12 @@ pub mod vault {
             //TODO EMIT EVENT
             match PSP22Ref::transfer_from(
                 &(collateral_address),
-                self.env().account_id(),
-                self.env().caller(),
+                contract,
+                vault_owner,
                 amount,
                 Vec::<u8>::new(),
             ) {
-                Ok(v) => (),
+                Ok(..) => (),
                 Err(e) => {
                     return Err(VaultError::from(e));
                 }
@@ -143,6 +155,7 @@ pub mod vault {
         }
 
         #[ink(message)]
+        #[brush::modifiers(when_not_paused)]
         fn borrow_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError> {
             let vault_owner: AccountId = self.owner_of(Id::U128(vault_id)).unwrap_or_default();
             if self.env().caller() != vault_owner {
