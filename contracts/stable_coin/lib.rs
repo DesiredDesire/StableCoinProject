@@ -215,7 +215,7 @@ pub mod stable_coin {
         #[ink(message)]
         #[modifiers(only_role(BURNER))]
         fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            self._mint(account, amount)
+            self._burn_from(account, amount)
         }
     }
 
