@@ -43,6 +43,7 @@ pub mod vault {
 
         pub collateral_by_id: Mapping<u128, Balance>,
         pub debt_by_id: Mapping<u128, Balance>,
+        pub total_debt: Balance,
         pub price_feed_address: AccountId,
         pub collaterall_token_address: AccountId,
         pub stable_coin_token_address: AccountId,
@@ -104,6 +105,9 @@ pub mod vault {
             ) {
                 return Err(From::from(err));
             }
+            let collateral = self.collateral_by_id.get(&vault_id).unwrap_or(0);
+            self.collateral_by_id
+                .insert(&vault_id, &(collateral + amount));
             //TODO EMIT EVENT
             Ok(())
         }
@@ -128,6 +132,7 @@ pub mod vault {
             {
                 return Err(VaultError::CollateralBelowMinimum);
             }
+            self.collateral_by_id.insert(&vault_id, &collateral_after);
             //TODO EMIT EVENT
             match PSP22Ref::transfer_from(
                 &(collateral_address),
@@ -172,6 +177,8 @@ pub mod vault {
             if debt + amount >= debt_ceiling {
                 return Err(VaultError::CollateralBelowMinimum);
             }
+            self.debt_by_id.insert(&vault_id, &(debt + amount));
+            self.total_debt += amount;
             match PSP22MintableRef::mint(&self.stable_coin_token_address, vault_owner, amount) {
                 Ok(..) => (),
                 Err(e) => {
@@ -196,6 +203,7 @@ pub mod vault {
                     }
                 };
                 self.debt_by_id.insert(&vault_id, &(0));
+                self.total_debt -= debt;
                 //TODO emit event
             } else {
                 match PSP22BurnableRef::burn(&self.stable_coin_token_address, vault_owner, amount) {
@@ -205,6 +213,7 @@ pub mod vault {
                     }
                 };
                 self.debt_by_id.insert(&vault_id, &(debt - amount));
+                self.total_debt -= amount;
                 //TODO emit event
             }
             Ok(())
@@ -233,6 +242,7 @@ pub mod vault {
                 }
             }
             self.debt_by_id.insert(&vault_id, &(debt - minimum_to_pay));
+            self.total_debt -= minimum_to_pay;
             self._remove_token(&vault_owner, &Id::U128(vault_id))?;
             self._do_safe_transfer_check(
                 &caller,
