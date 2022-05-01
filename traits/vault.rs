@@ -43,6 +43,8 @@ pub trait VaultInternal {
     fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError>;
     fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError>;
     fn _get_collateral_price_e6(&self) -> Result<u128, VaultError>;
+    fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError>;
+    fn _update_cuurent_interest_coefficient_e12(&mut self) -> Result<u128, VaultError>;
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]

@@ -51,6 +51,12 @@ pub mod vault {
         pub stable_coin_token_address: AccountId,
         pub minimum_collateral_coefficient_e6: u128,
         pub next_id: u128,
+
+        pub last_interest_coefficient_by_id_e12: Mapping<u128, u128>,
+        pub current_interest_coefficient_e12: u128,
+        pub interest_coefficient_feeder_address: AccountId,
+        pub last_interest_update: u32,
+        pub stored_interest: Balance,
     }
     impl Ownable for VaultContract {}
     impl Pausable for VaultContract {}
@@ -124,7 +130,7 @@ pub mod vault {
             let contract = self.env().account_id();
             let collateral_address = self.collaterall_token_address;
             let vault_collateral = self.collateral_by_id.get(&vault_id).unwrap_or(0);
-            let vault_debt = self.debt_by_id.get(&vault_id).unwrap_or(U128MAX);
+            let vault_debt = self._update_vault_debt(&vault_id)?;
             let collateral_after = vault_collateral - amount;
             if vault_debt * self.minimum_collateral_coefficient_e6
                 >= self._collateral_value_e6(collateral_after).unwrap_or(0)
@@ -340,19 +346,46 @@ pub mod vault {
         fn _get_collateral_price_e6(&self) -> Result<u128, VaultError> {
             Ok(1000000)
         }
+
+        fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError> {
+            let current_interest_coefficient_e12 =
+                self._update_cuurent_interest_coefficient_e12()?;
+            let last_interest_coefficient_e12 = self
+                .last_interest_coefficient_by_id_e12
+                .get(&vault_id)
+                .unwrap_or(0);
+            let debt = self.debt_by_id.get(&vault_id).unwrap_or(U128MAX);
+            let updated_debt =
+                debt * current_interest_coefficient_e12 / last_interest_coefficient_e12;
+            self.stored_interest += updated_debt - debt;
+            self.debt_by_id.insert(&vault_id, &updated_debt);
+            Ok(updated_debt)
+        }
+
+        fn _update_cuurent_interest_coefficient_e12(&mut self) -> Result<u128, VaultError> {
+            let block_number: u32 = self.env().block_number();
+            if block_number > self.last_interest_update {
+                self.last_interest_update = block_number;
+                self.current_interest_coefficient_e12 = 1000000000000000; //RODO get interest coefficient from
+            }
+            Ok(self.current_interest_coefficient_e12)
+        }
     }
 
     impl VaultContract {
         #[ink(constructor)]
         pub fn new(
             collaterall_token_address: AccountId,
-            minted_token_address: AccountId,
+            emited_token_address: AccountId,
+            feeder_address: AccountId,
             minimum_collateral_coefficient_e6: u128,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
                 instance.collaterall_token_address = collaterall_token_address;
-                instance.emit.emited_token_address = minted_token_address;
+                instance.emit.emited_token_address = emited_token_address;
                 instance.minimum_collateral_coefficient_e6 = minimum_collateral_coefficient_e6;
+                instance.ownable.owner = instance.env().caller();
+                instance.eat.feeder_address = feeder_address;
             })
         }
         #[ink(message)]
