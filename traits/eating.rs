@@ -18,6 +18,15 @@ pub trait Eating {
     fn change_feeder(&mut self, new_feeder_address: AccountId) -> Result<(), EatingError>;
 }
 
+pub trait EatingInternal {
+    fn _emit_feeder_changed_event(
+        &self,
+        _old_feeder: Option<AccountId>,
+        _new_feeder: Option<AccountId>,
+        _caller: AccountId,
+    );
+}
+
 /// Enum of errors raised by our lending smart contract
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]

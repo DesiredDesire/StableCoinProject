@@ -4,10 +4,12 @@
 #[brush::contract]
 pub mod vault {
     //TODO oprocentowanie debt
+    use brush::contracts::psp34::PSP34Internal;
     use brush::{
         contracts::ownable::*, contracts::pausable::*, contracts::psp22::extensions::burnable::*,
         contracts::psp22::extensions::mintable::*, contracts::psp34::*, modifiers,
     };
+    use ink_lang::codegen::EmitEvent;
     use ink_lang::codegen::Env;
     use ink_prelude::vec::Vec;
     use ink_storage::traits::SpreadAllocate;
@@ -34,10 +36,10 @@ pub mod vault {
         ownable: OwnableData,
         #[PausableStorageField]
         pause: PausableData,
-        #[EmitingStorageField]
-        emit: EmitingData,
         #[PSP34StorageField]
         psp34: PSP34Data,
+        #[EmitingStorageField]
+        emit: EmitingData,
         #[EatingStorageField]
         eat: EatingData,
 
@@ -48,12 +50,11 @@ pub mod vault {
         pub collaterall_token_address: AccountId,
         pub stable_coin_token_address: AccountId,
         pub minimum_collateral_coefficient_e6: u128,
-        pub last_collateral_price: u128,
         pub next_id: u128,
     }
-
+    impl Ownable for VaultContract {}
+    impl Pausable for VaultContract {}
     impl PSP34 for VaultContract {}
-    impl PSP34Internal for VaultContract {}
     impl Emiting for VaultContract {}
     impl Eating for VaultContract {}
 
@@ -65,7 +66,6 @@ pub mod vault {
             self._mint_to(caller, Id::U128(next_id))?;
             self.next_id += 1;
             Ok(())
-            //TODO EMIT EVENT - PSP34::mint will emit event => TODO implement PSP34 event
         }
         #[ink(message)]
         fn destroy_vault(&mut self, vault_id: u128) -> Result<(), VaultError> {
@@ -82,7 +82,6 @@ pub mod vault {
             }
             self._burn_from(vault_owner, Id::U128(vault_id))?;
             Ok(())
-            //TODO EMIT EVENT - PSP34::burn will emit event => TODO implement PSP34 event
         }
 
         #[ink(message)]
@@ -108,7 +107,7 @@ pub mod vault {
             let collateral = self.collateral_by_id.get(&vault_id).unwrap_or(0);
             self.collateral_by_id
                 .insert(&vault_id, &(collateral + amount));
-            //TODO EMIT EVENT
+            self._emit_deposit_event(vault_id, collateral);
             Ok(())
         }
 
@@ -133,7 +132,6 @@ pub mod vault {
                 return Err(VaultError::CollateralBelowMinimum);
             }
             self.collateral_by_id.insert(&vault_id, &collateral_after);
-            //TODO EMIT EVENT
             match PSP22Ref::transfer_from(
                 &(collateral_address),
                 contract,
@@ -146,6 +144,7 @@ pub mod vault {
                     return Err(VaultError::from(e));
                 }
             };
+            self._emit_deposit_event(vault_id, collateral_after);
 
             Ok(())
         }
@@ -185,7 +184,7 @@ pub mod vault {
                     return Err(VaultError::from(e));
                 }
             };
-            //TODO emitevent
+            self._emit_borrow_event(vault_id, debt + amount);
             Ok(())
         }
         #[ink(message)]
@@ -204,7 +203,7 @@ pub mod vault {
                 };
                 self.debt_by_id.insert(&vault_id, &(0));
                 self.total_debt -= debt;
-                //TODO emit event
+                self._emit_pay_back_event(vault_id, 0);
             } else {
                 match PSP22BurnableRef::burn(&self.stable_coin_token_address, vault_owner, amount) {
                     Ok(..) => (),
@@ -214,7 +213,7 @@ pub mod vault {
                 };
                 self.debt_by_id.insert(&vault_id, &(debt - amount));
                 self.total_debt -= amount;
-                //TODO emit event
+                self._emit_pay_back_event(vault_id, debt - amount);
             }
             Ok(())
         }
@@ -241,8 +240,10 @@ pub mod vault {
                     return Err(VaultError::from(e));
                 }
             }
+
             self.debt_by_id.insert(&vault_id, &(debt - minimum_to_pay));
             self.total_debt -= minimum_to_pay;
+            self._emit_pay_back_event(vault_id, debt - minimum_to_pay);
             self._remove_token(&vault_owner, &Id::U128(vault_id))?;
             self._do_safe_transfer_check(
                 &caller,
@@ -252,12 +253,66 @@ pub mod vault {
                 &Vec::<u8>::new(),
             )?;
             self._add_token(&caller, &Id::U128(vault_id))?;
-            //TODO emit event
+            self._emit_transfer_event(Some(vault_owner), Some(caller), Id::U128(vault_id));
             Ok(())
         }
     }
 
+    #[ink(event)]
+    pub struct Deposit {
+        #[ink(topic)]
+        vault_id: u128,
+        current_collateral: Balance,
+    }
+    #[ink(event)]
+    pub struct Withdraw {
+        #[ink(topic)]
+        vault_id: u128,
+        current_collateral: Balance,
+    }
+
+    #[ink(event)]
+    pub struct Borrow {
+        #[ink(topic)]
+        vault_id: u128,
+        current_debt: Balance,
+    }
+    #[ink(event)]
+    pub struct PayBack {
+        #[ink(topic)]
+        vault_id: u128,
+        current_debt: Balance,
+    }
+
     impl VaultInternal for VaultContract {
+        fn _emit_deposit_event(&self, _vault_id: u128, _current_collateral: Balance) {
+            self.env().emit_event(Deposit {
+                vault_id: _vault_id,
+                current_collateral: _current_collateral,
+            });
+        }
+
+        fn _emit_withdraw_event(&self, _vault_id: u128, _current_collateral: Balance) {
+            self.env().emit_event(Deposit {
+                vault_id: _vault_id,
+                current_collateral: _current_collateral,
+            });
+        }
+
+        fn _emit_borrow_event(&self, _vault_id: u128, _current_debt: Balance) {
+            self.env().emit_event(Borrow {
+                vault_id: _vault_id,
+                current_debt: _current_debt,
+            });
+        }
+
+        fn _emit_pay_back_event(&self, _vault_id: u128, _current_debt: Balance) {
+            self.env().emit_event(PayBack {
+                vault_id: _vault_id,
+                current_debt: _current_debt,
+            });
+        }
+
         fn _get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError> {
             match self._vault_collateral_value_e6(vault_id) {
                 Ok(v) => return Ok(v / self.minimum_collateral_coefficient_e6),
@@ -304,6 +359,123 @@ pub mod vault {
         #[modifiers(only_owner)]
         pub fn pause(&mut self) -> Result<(), VaultError> {
             self._pause()
+        }
+    }
+
+    #[ink(event)]
+    pub struct OwnershipTransferred {
+        #[ink(topic)]
+        previous_owner: Option<AccountId>,
+        #[ink(topic)]
+        new_owner: Option<AccountId>,
+    }
+
+    impl OwnableInternal for VaultContract {
+        fn _emit_ownership_transferred_event(
+            &self,
+            _previous_owner: Option<AccountId>,
+            _new_owner: Option<AccountId>,
+        ) {
+            self.env().emit_event(OwnershipTransferred {
+                previous_owner: _previous_owner,
+                new_owner: _new_owner,
+            });
+        }
+    }
+
+    #[ink(event)]
+    pub struct Paused {
+        #[ink(topic)]
+        by: Option<AccountId>,
+    }
+
+    #[ink(event)]
+    pub struct Unpaused {
+        #[ink(topic)]
+        by: Option<AccountId>,
+    }
+    impl PausableInternal for VaultContract {
+        /// User must override this method in their contract.
+        fn _emit_paused_event(&self, _account: AccountId) {
+            self.env().emit_event(Paused { by: Some(_account) });
+        }
+
+        /// User must override this method in their contract.
+        fn _emit_unpaused_event(&self, _account: AccountId) {
+            self.env().emit_event(Unpaused { by: Some(_account) });
+        }
+    }
+
+    #[ink(event)]
+    pub struct Transfer {
+        #[ink(topic)]
+        from: Option<AccountId>,
+        #[ink(topic)]
+        to: Option<AccountId>,
+        #[ink(topic)]
+        id: Id,
+    }
+
+    #[ink(event)]
+    pub struct Approval {
+        #[ink(topic)]
+        from: AccountId,
+        #[ink(topic)]
+        to: AccountId,
+        #[ink(topic)]
+        id: Option<Id>,
+        approved: bool,
+    }
+
+    impl PSP34Internal for VaultContract {
+        /// Emits transfer event. This method must be implemented in derived implementation
+        fn _emit_transfer_event(&self, _from: Option<AccountId>, _to: Option<AccountId>, _id: Id) {
+            self.env().emit_event(Transfer {
+                from: _from,
+                to: _to,
+                id: _id,
+            })
+        }
+
+        /// Emits approval event. This method must be implemented in derived implementation
+        fn _emit_approval_event(
+            &self,
+            _from: AccountId,
+            _to: AccountId,
+            _id: Option<Id>,
+            approved: bool,
+        ) {
+            self.env().emit_event(Approval {
+                from: _from,
+                to: _to,
+                id: _id,
+                approved: approved,
+            })
+        }
+    }
+
+    #[ink(event)]
+    pub struct FeederChanged {
+        #[ink(topic)]
+        old_feeder: Option<AccountId>,
+        #[ink(topic)]
+        new_feeder: Option<AccountId>,
+        #[ink(topic)]
+        caller: AccountId,
+    }
+
+    impl EatingInternal for VaultContract {
+        fn _emit_feeder_changed_event(
+            &self,
+            _old_feeder: Option<AccountId>,
+            _new_feeder: Option<AccountId>,
+            _caller: AccountId,
+        ) {
+            self.env().emit_event(FeederChanged {
+                old_feeder: _old_feeder,
+                new_feeder: _new_feeder,
+                caller: _caller,
+            })
         }
     }
 }

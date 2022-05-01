@@ -5,7 +5,7 @@
 pub mod psp22_emitable {
 
     use brush::{
-        contracts::access_control::*, contracts::ownable::*,
+        constracts::psp22::*, contracts::access_control::*, contracts::ownable::*,
         contracts::psp22::extensions::burnable::*, contracts::psp22::extensions::metadata::*,
         contracts::psp22::extensions::mintable::*, modifiers,
     };

@@ -35,6 +35,10 @@ pub trait Vault {
     fn buy_risky_vault(&mut self, vault_id: u128) -> Result<(), VaultError>;
 }
 pub trait VaultInternal {
+    fn _emit_deposit_event(&self, _vault_id: u128, _current_collateral: Balance);
+    fn _emit_withdraw_event(&self, _vault_id: u128, _current_collateral: Balance);
+    fn _emit_borrow_event(&self, _vault_id: u128, _current_debt: Balance);
+    fn _emit_pay_back_event(&self, _vault_id: u128, _current_debt: Balance);
     fn _get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError>;
     fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError>;
     fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError>;
