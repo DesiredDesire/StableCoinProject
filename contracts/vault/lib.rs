@@ -75,15 +75,18 @@ pub mod vault {
         }
         #[ink(message)]
         fn destroy_vault(&mut self, vault_id: u128) -> Result<(), VaultError> {
-            let vault_owner: AccountId = self.owner_of(Id::U128(vault_id)).unwrap_or_default();
+            let vault_owner: AccountId = match self._owner_of(&Id::U128(vault_id)) {
+                Some(v) => v,
+                None => return Err(VaultError::OwnerUnexists),
+            };
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
             }
 
-            if self.debt_by_id.get(vault_id).unwrap_or(1) != 0 {
+            if self._get_debt_by_id(&vault_id)? != 0 {
                 return Err(VaultError::HasDebt);
             }
-            if self.collateral_by_id.get(vault_id).unwrap_or(1) != 0 {
+            if self._get_collateral_by_id(&vault_id)? != 0 {
                 return Err(VaultError::NotEmpty);
             }
             self._burn_from(vault_owner, Id::U128(vault_id))?;
@@ -110,7 +113,7 @@ pub mod vault {
             ) {
                 return Err(From::from(err));
             }
-            let collateral = self.collateral_by_id.get(&vault_id).unwrap_or(0);
+            let collateral = self._get_collateral_by_id(&vault_id)?;
             self.collateral_by_id
                 .insert(&vault_id, &(collateral + amount));
             self._emit_deposit_event(vault_id, collateral);
@@ -129,7 +132,7 @@ pub mod vault {
             }
             let contract = self.env().account_id();
             let collateral_address = self.collaterall_token_address;
-            let vault_collateral = self.collateral_by_id.get(&vault_id).unwrap_or(0);
+            let vault_collateral = self._get_collateral_by_id(&vault_id)?;
             let vault_debt = self._update_vault_debt(&vault_id)?;
             let collateral_after = vault_collateral - amount;
             if vault_debt * self.minimum_collateral_coefficient_e6
@@ -178,7 +181,7 @@ pub mod vault {
                     return Err(e);
                 }
             };
-            let debt = self.debt_by_id.get(vault_id).unwrap_or(U128MAX);
+            let debt = self._get_debt_by_id(&vault_id)?;
             if debt + amount >= debt_ceiling {
                 return Err(VaultError::CollateralBelowMinimum);
             }
@@ -199,7 +202,7 @@ pub mod vault {
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
             }
-            let debt = self.debt_by_id.get(vault_id).unwrap_or(U128MAX);
+            let debt = self._get_debt_by_id(&vault_id)?;
             if amount >= debt {
                 match PSP22BurnableRef::burn(&self.stable_coin_token_address, vault_owner, debt) {
                     Ok(..) => (),
@@ -233,7 +236,7 @@ pub mod vault {
                     return Err(e);
                 }
             };
-            let debt = self.debt_by_id.get(&vault_id).unwrap_or(U128MAX); //IMPORTANT TODO! udnerstand these unwraps. if something goes wrong one can't rebuy the vault!
+            let debt = self._get_debt_by_id(&vault_id)?;
 
             if debt_ceiling > debt {
                 return Err(VaultError::CollateralAboveMinimum);
@@ -320,26 +323,18 @@ pub mod vault {
         }
 
         fn _get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError> {
-            match self._vault_collateral_value_e6(vault_id) {
-                Ok(v) => return Ok(v / self.minimum_collateral_coefficient_e6),
-                Err(e) => {
-                    return Err(e);
-                }
-            }
+            let debt_ceiling =
+                self._vault_collateral_value_e6(vault_id)? / self.minimum_collateral_coefficient_e6;
+            Ok(debt_ceiling)
         }
 
         fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError> {
-            let collateral_price_e6 = match self._get_collateral_price_e6() {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(e);
-                }
-            };
+            let collateral_price_e6 = self._get_collateral_price_e6()?;
             Ok(collateral * collateral_price_e6)
         }
 
         fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError> {
-            let collateral = self.collateral_by_id.get(&value_id).unwrap_or(0);
+            let collateral = self._get_collateral_by_id(&value_id)?;
             self._collateral_value_e6(collateral)
         }
 
@@ -350,11 +345,9 @@ pub mod vault {
         fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError> {
             let current_interest_coefficient_e12 =
                 self._update_cuurent_interest_coefficient_e12()?;
-            let last_interest_coefficient_e12 = self
-                .last_interest_coefficient_by_id_e12
-                .get(&vault_id)
-                .unwrap_or(0);
-            let debt = self.debt_by_id.get(&vault_id).unwrap_or(U128MAX);
+            let last_interest_coefficient_e12 =
+                self._get_last_interest_coefficient_by_id_e12(&vault_id)?;
+            let debt = self._get_debt_by_id(&vault_id)?;
             let updated_debt =
                 debt * current_interest_coefficient_e12 / last_interest_coefficient_e12;
             self.stored_interest += updated_debt - debt;
@@ -369,6 +362,41 @@ pub mod vault {
                 self.current_interest_coefficient_e12 = 1000000000000000; //RODO get interest coefficient from
             }
             Ok(self.current_interest_coefficient_e12)
+        }
+
+        fn _get_debt_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError> {
+            match self.debt_by_id.get(&vault_id) {
+                Some(v) => {
+                    return Ok(v);
+                }
+                None => {
+                    return Err(VaultError::DebtUnexists);
+                }
+            }
+        }
+        fn _get_collateral_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError> {
+            match self.collateral_by_id.get(&vault_id) {
+                Some(v) => {
+                    return Ok(v);
+                }
+                None => {
+                    return Err(VaultError::CollateralUnexists);
+                }
+            }
+        }
+
+        fn _get_last_interest_coefficient_by_id_e12(
+            &self,
+            vault_id: &u128,
+        ) -> Result<Balance, VaultError> {
+            match self.last_interest_coefficient_by_id_e12.get(&vault_id) {
+                Some(v) => {
+                    return Ok(v);
+                }
+                None => {
+                    return Err(VaultError::CollateralUnexists);
+                }
+            }
         }
     }
 

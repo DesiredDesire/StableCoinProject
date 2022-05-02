@@ -45,11 +45,20 @@ pub trait VaultInternal {
     fn _get_collateral_price_e6(&self) -> Result<u128, VaultError>;
     fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError>;
     fn _update_cuurent_interest_coefficient_e12(&mut self) -> Result<u128, VaultError>;
+    fn _get_debt_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError>;
+    fn _get_collateral_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError>;
+    fn _get_last_interest_coefficient_by_id_e12(
+        &self,
+        vault_id: &u128,
+    ) -> Result<Balance, VaultError>;
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum VaultError {
+    OwnerUnexists,
+    DebtUnexists,
+    CollateralUnexists,
     Unexists,
     Exists,
     HasDebt,
