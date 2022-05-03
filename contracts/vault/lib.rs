@@ -48,7 +48,6 @@ pub mod vault {
         pub total_debt: Balance,
         pub price_feed_address: AccountId,
         pub collaterall_token_address: AccountId,
-        pub stable_coin_token_address: AccountId,
         pub minimum_collateral_coefficient_e6: u128,
         pub next_id: u128,
 
@@ -61,6 +60,7 @@ pub mod vault {
     impl Ownable for VaultContract {}
     impl Pausable for VaultContract {}
     impl PSP34 for VaultContract {}
+    impl EmitingInternal for VaultContract {}
     impl Emiting for VaultContract {}
     impl Eating for VaultContract {}
 
@@ -187,12 +187,7 @@ pub mod vault {
             }
             self.debt_by_id.insert(&vault_id, &(debt + amount));
             self.total_debt += amount;
-            match PSP22MintableRef::mint(&self.stable_coin_token_address, vault_owner, amount) {
-                Ok(..) => (),
-                Err(e) => {
-                    return Err(VaultError::from(e));
-                }
-            };
+            self._mint_emited_token(vault_owner, amount)?;
             self._emit_borrow_event(vault_id, debt + amount);
             Ok(())
         }
@@ -204,22 +199,12 @@ pub mod vault {
             }
             let debt = self._get_debt_by_id(&vault_id)?;
             if amount >= debt {
-                match PSP22BurnableRef::burn(&self.stable_coin_token_address, vault_owner, debt) {
-                    Ok(..) => (),
-                    Err(e) => {
-                        return Err(VaultError::from(e));
-                    }
-                };
+                self._burn_emited_token(vault_owner, debt)?;
                 self.debt_by_id.insert(&vault_id, &(0));
                 self.total_debt -= debt;
                 self._emit_pay_back_event(vault_id, 0);
             } else {
-                match PSP22BurnableRef::burn(&self.stable_coin_token_address, vault_owner, amount) {
-                    Ok(..) => (),
-                    Err(e) => {
-                        return Err(VaultError::from(e));
-                    }
-                };
+                self._burn_emited_token(vault_owner, amount)?;
                 self.debt_by_id.insert(&vault_id, &(debt - amount));
                 self.total_debt -= amount;
                 self._emit_pay_back_event(vault_id, debt - amount);
@@ -243,12 +228,7 @@ pub mod vault {
             }
 
             let minimum_to_pay = (debt - debt_ceiling) + 1;
-            match PSP22BurnableRef::burn(&self.stable_coin_token_address, caller, minimum_to_pay) {
-                Ok(..) => (),
-                Err(e) => {
-                    return Err(VaultError::from(e));
-                }
-            }
+            self._burn_emited_token(caller, minimum_to_pay)?;
 
             self.debt_by_id.insert(&vault_id, &(debt - minimum_to_pay));
             self.total_debt -= minimum_to_pay;

@@ -13,9 +13,7 @@ pub type EmitingRef = dyn Emiting;
 #[brush::trait_definition]
 pub trait Emiting {
     #[ink(message)]
-    fn mint(&mut self, to: AccountId, amount: Balance) -> Result<(), EmitingError>;
-    #[ink(message)]
-    fn burn(&mut self, from: AccountId, amount: Balance) -> Result<(), EmitingError>;
+    fn emited_amount(&self) -> Balance;
 }
 
 /// Enum of errors raised by our lending smart contract
