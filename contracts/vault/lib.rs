@@ -6,8 +6,8 @@ pub mod vault {
     //TODO oprocentowanie debt
     use brush::contracts::psp34::PSP34Internal;
     use brush::{
-        contracts::ownable::*, contracts::pausable::*, contracts::psp22::extensions::burnable::*,
-        contracts::psp22::extensions::mintable::*, contracts::psp34::*, modifiers,
+        contracts::ownable::*, contracts::pausable::*, contracts::psp22::*, contracts::psp34::*,
+        modifiers,
     };
     use ink_lang::codegen::EmitEvent;
     use ink_lang::codegen::Env;
@@ -16,10 +16,9 @@ pub mod vault {
     use ink_storage::Mapping;
     use stable_coin_project::impls::eating::*;
     use stable_coin_project::impls::emiting::*;
-    use stable_coin_project::traits::eating::*;
     use stable_coin_project::traits::vault::*;
 
-    const U128MAX: u128 = 340282366920938463463374607431768211455;
+    // const U128MAX: u128 = 340282366920938463463374607431768211455;
 
     #[ink(storage)]
     #[derive(
@@ -43,11 +42,12 @@ pub mod vault {
         #[EatingStorageField]
         eat: EatingData,
 
+        pub collaterall_token_address: AccountId,
+
         pub collateral_by_id: Mapping<u128, Balance>,
         pub debt_by_id: Mapping<u128, Balance>,
         pub total_debt: Balance,
         pub price_feed_address: AccountId,
-        pub collaterall_token_address: AccountId,
         pub minimum_collateral_coefficient_e6: u128,
         pub next_id: u128,
 
@@ -55,6 +55,7 @@ pub mod vault {
         pub current_interest_coefficient_e12: u128,
         pub interest_coefficient_feeder_address: AccountId,
         pub last_interest_update: u32,
+
         pub stored_interest: Balance,
     }
     impl Ownable for VaultContract {}

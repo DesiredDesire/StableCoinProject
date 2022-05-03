@@ -1,6 +1,6 @@
 use brush::{
     contracts::{psp22::PSP22Error, traits::pausable::*},
-    traits::{AccountId, Balance},
+    traits::Balance,
 };
 
 /// Combination of all traits of the contract to simplify calls to the contract
