@@ -12,7 +12,7 @@ pub type EatingRef = dyn Eating;
 #[brush::trait_definition]
 pub trait Eating {
     #[ink(message)]
-    fn eat_price(&self) -> Result<u128, EatingError>;
+    fn eat_collateral_price(&self) -> Result<u128, EatingError>;
 
     #[ink(message)]
     fn change_feeder(&mut self, new_feeder_address: AccountId) -> Result<(), EatingError>;

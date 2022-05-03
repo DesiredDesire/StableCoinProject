@@ -6,3 +6,5 @@ pub mod managing;
 pub mod minter;
 pub mod stable_coin;
 pub mod vault;
+pub mod vault_eating;
+pub mod vault_feeding;

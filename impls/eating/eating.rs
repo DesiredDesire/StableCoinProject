@@ -6,7 +6,7 @@ use brush::contracts::ownable::*;
 use brush::traits::AccountId;
 
 impl<T: EatingStorage + OwnableStorage> Eating for T {
-    default fn eat_price(&self) -> Result<u128, EatingError> {
+    default fn eat_collateral_price(&self) -> Result<u128, EatingError> {
         match FeedingRef::feed_price(&EatingStorage::get(self).feeder_address) {
             Ok(v) => Ok(v),
             Err(e) => Err(EatingError::from(e)),

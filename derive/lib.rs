@@ -16,3 +16,8 @@ declare_derive_storage_trait!(
     EmittingStorageField
 );
 declare_derive_storage_trait!(derive_eating_storage, EatingStorage, EatingStorageField);
+declare_derive_storage_trait!(
+    derive_vault_eating_storage,
+    VEatingStorage,
+    VEatingStorageField
+);

@@ -7,16 +7,16 @@ use brush::{
 };
 
 use crate::traits::collateralling::*;
-use crate::traits::eating::*;
 use crate::traits::emitting::*;
+use crate::traits::vault_eating::*;
 
 /// Combination of all traits of the contract to simplify calls to the contract
 #[brush::wrapper]
-pub type VaultContractRef = dyn Vault + Ownable + Pausable + Collateralling + Emitting + Eating;
+pub type VaultContractRef = dyn Vault + Ownable + Pausable + Collateralling + Emitting + VEating;
 
 #[brush::trait_definition]
 pub trait VaultContractCheck:
-    Vault + Ownable + Pausable + Collateralling + Emitting + Eating
+    Vault + Ownable + Pausable + Collateralling + Emitting + VEating
 {
 }
 
@@ -50,7 +50,6 @@ pub trait VaultInternal {
     fn _get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError>;
     fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError>;
     fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError>;
-    fn _get_collateral_price_e6(&self) -> Result<u128, VaultError>;
     fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError>;
     fn _update_cuurent_interest_coefficient_e12(&mut self) -> Result<u128, VaultError>;
     fn _get_debt_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError>;
@@ -80,7 +79,7 @@ pub enum VaultError {
     CollaterallingError(CollaterallingError),
     OwnableError(OwnableError),
     EmittingError(EmittingError),
-    EatingError(EatingError),
+    VEatingError(VEatingError),
 }
 
 impl From<PSP34Error> for VaultError {
@@ -107,9 +106,9 @@ impl From<EmittingError> for VaultError {
     }
 }
 
-impl From<EatingError> for VaultError {
-    fn from(error: EatingError) -> Self {
-        VaultError::EatingError(error)
+impl From<VEatingError> for VaultError {
+    fn from(error: VEatingError) -> Self {
+        VaultError::VEatingError(error)
     }
 }
 impl From<CollaterallingError> for VaultError {
