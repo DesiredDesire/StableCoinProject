@@ -31,29 +31,28 @@ pub mod vault {
         VEatingStorage,
     )]
     pub struct VaultContract {
-        #[OwnableStorageField] //
+        #[OwnableStorageField]
         ownable: OwnableData,
         #[PausableStorageField]
         pause: PausableData,
-        #[PSP34StorageField]
+        #[PSP34StorageField] // vault ownership
         psp34: PSP34Data,
-        #[CollaterallingStorageField]
+        #[CollaterallingStorageField] // collateral_token_address
         collateral: CollaterallingData,
-        #[EmittingStorageField]
+        #[EmittingStorageField] // emited_token_address
         emit: EmittingData,
-        #[VEatingStorageField]
+        #[VEatingStorageField] // feeder_contract_ address
         eat: VEatingData,
 
         pub collateral_by_id: Mapping<u128, Balance>,
         pub debt_by_id: Mapping<u128, Balance>,
-        pub last_interest_coefficient_by_id_e12: Mapping<u128, u128>,
-        pub current_interest_coefficient_e12: u128,
-        pub last_interest_coefficient_e12_update: u128,
+        pub last_interest_coefficient_by_id_e12: Mapping<u128, u128>, // the last interest coefficient (acumulated interest) used for vault with id
+        pub current_interest_coefficient_e12: u128, // the current interest coefficient (acmulated interest)
+        pub last_interest_coefficient_e12_update: u128, // last block number when current_interest_coefficient_e12 was updated
         pub total_debt: Balance,
         pub next_id: u128,
 
-        // Collecting profits
-        pub stored_interest: Balance,
+        pub earned_interest: Balance, // amount of emitted token that can be mint, collecting debt interest
     }
     impl Ownable for VaultContract {} // owner can pause contract
     impl Pausable for VaultContract {} // when paused borrowing is imposible
@@ -65,6 +64,7 @@ pub mod vault {
     impl VEating for VaultContract {} // source of collateral_price, interest_rate and minimum_collateral_amount
 
     impl Vault for VaultContract {
+        // mints a NFT to caller that represent vault
         #[ink(message)]
         fn create_vault(&mut self) -> Result<(), VaultError> {
             let caller = self.env().caller();
@@ -73,6 +73,7 @@ pub mod vault {
             self.next_id += 1;
             Ok(())
         }
+        // burns a NFT from a caller that represent vault
         #[ink(message)]
         fn destroy_vault(&mut self, vault_id: u128) -> Result<(), VaultError> {
             let vault_owner: AccountId = match self._owner_of(&Id::U128(vault_id)) {
@@ -93,6 +94,7 @@ pub mod vault {
             Ok(())
         }
 
+        // deposit collateral to the callers vault
         #[ink(message)]
         fn deposit_collateral(
             &mut self,
@@ -113,6 +115,7 @@ pub mod vault {
             Ok(())
         }
 
+        // updates vault debt and withdraws collateral if there is enought
         #[ink(message)]
         fn withdraw_collateral(
             &mut self,
@@ -142,6 +145,7 @@ pub mod vault {
             Ok(())
         }
 
+        // returns maximum debt for a vault
         #[ink(message)]
         fn get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError> {
             match self._get_debt_ceiling(vault_id) {
@@ -152,6 +156,7 @@ pub mod vault {
             }
         }
 
+        // updates vault and borrows tokens if possible
         #[ink(message)]
         #[brush::modifiers(when_not_paused)]
         fn borrow_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError> {
@@ -165,7 +170,7 @@ pub mod vault {
                     return Err(e);
                 }
             };
-            let debt = self._get_debt_by_id(&vault_id)?;
+            let debt = self._update_vault_debt(&vault_id)?;
             if debt + amount >= debt_ceiling {
                 return Err(VaultError::CollateralBelowMinimum);
             }
@@ -175,13 +180,15 @@ pub mod vault {
             self._emit_borrow_event(vault_id, debt + amount);
             Ok(())
         }
+
+        // updates debt and pay back some debt
         #[ink(message)]
         fn pay_back_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError> {
             let vault_owner: AccountId = self.owner_of(Id::U128(vault_id)).unwrap_or_default();
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
             }
-            let debt = self._get_debt_by_id(&vault_id)?;
+            let debt = self._update_vault_debt(&vault_id)?;
             if amount >= debt {
                 self._burn_emited_token(vault_owner, debt)?;
                 self.debt_by_id.insert(&vault_id, &(0));
@@ -195,6 +202,7 @@ pub mod vault {
             }
             Ok(())
         }
+        // if vault has not enough collateral, callers pays back some debt than transfer vault to caller
         #[ink(message)]
         fn buy_risky_vault(&mut self, vault_id: u128) -> Result<(), VaultError> {
             let caller = self.env().caller();
@@ -205,7 +213,7 @@ pub mod vault {
                     return Err(e);
                 }
             };
-            let debt = self._get_debt_by_id(&vault_id)?;
+            let debt = self._update_vault_debt(&vault_id)?;
 
             if debt_ceiling > debt {
                 return Err(VaultError::CollateralAboveMinimum);
@@ -235,14 +243,18 @@ pub mod vault {
         fn get_vault_details(&self, vault_id: u128) -> Result<(Balance, Balance), VaultError>;
     }
     impl VaultView for VaultContract {
+        // return total debt
         fn get_total_debt(&self) -> Balance {
             self.total_debt
         }
 
+        // returns cault collateral and debt
         fn get_vault_details(&self, vault_id: u128) -> Result<(Balance, Balance), VaultError> {
             Ok((
                 self._get_collateral_by_id(&vault_id)?,
-                self._get_debt_by_id(&vault_id)?,
+                self._get_debt_by_id(&vault_id)?
+                    * self._get_last_interest_coefficient_by_id_e12(&vault_id)?
+                    / self._get_current_interest_coefficient_e12()?,
             ))
         }
     }
@@ -302,22 +314,26 @@ pub mod vault {
             });
         }
 
+        // return maximal debt for a vault
         fn _get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError> {
             let debt_ceiling = self._vault_collateral_value_e6(vault_id)?
                 / self.eat_minimum_collateral_coefficient_e6()?;
             Ok(debt_ceiling)
         }
 
+        // collateral amount -> collateral value
         fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError> {
-            let collateral_price_e6 = self.eat_collateral_price_e12()?;
+            let collateral_price_e6 = self.eat_collateral_price_e6()?;
             Ok(collateral * collateral_price_e6)
         }
 
+        // returns value of vaults collateral
         fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError> {
             let collateral = self._get_collateral_by_id(&value_id)?;
             self._collateral_value_e6(collateral)
         }
 
+        // updates current interest coefficient, updates vaults debt and increments stored interest
         fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError> {
             let current_interest_coefficient_e12 =
                 self._update_cuurent_interest_coefficient_e12()?;
@@ -326,15 +342,18 @@ pub mod vault {
             let debt = self._get_debt_by_id(&vault_id)?;
             let updated_debt =
                 debt * current_interest_coefficient_e12 / last_interest_coefficient_e12;
-            self.stored_interest += updated_debt - debt;
+            self.earned_interest += updated_debt - debt;
             self.debt_by_id.insert(&vault_id, &updated_debt);
+            self.last_interest_coefficient_by_id_e12
+                .insert(&vault_id, &current_interest_coefficient_e12);
             Ok(updated_debt)
         }
 
+        // calculates, updates and returns current interest coefficient
         fn _update_cuurent_interest_coefficient_e12(&mut self) -> Result<u128, VaultError> {
             let block_number: u128 = self.env().block_number() as u128;
-            if block_number > self.last_interest_coefficient_e12_update {
-                let last_block_number = self.last_interest_coefficient_e12_update;
+            let last_block_number = self.last_interest_coefficient_e12_update;
+            if block_number > last_block_number {
                 self.last_interest_coefficient_e12_update = block_number;
                 let interest_rate = self.eat_interest_rate_e12()?;
                 self.current_interest_coefficient_e12 = self.current_interest_coefficient_e12
@@ -344,6 +363,19 @@ pub mod vault {
             Ok(self.current_interest_coefficient_e12)
         }
 
+        // calculates and retuns current interest coefficient
+        fn _get_current_interest_coefficient_e12(&self) -> Result<u128, VaultError> {
+            let block_number: u128 = self.env().block_number() as u128;
+            let last_block_number = self.last_interest_coefficient_e12_update;
+            let mut ret = self.current_interest_coefficient_e12;
+            if block_number > last_block_number {
+                let interest_rate = self.eat_interest_rate_e12()?;
+                ret = ret * (E12 + (block_number - last_block_number) * interest_rate) / E12;
+            }
+            Ok(ret)
+        }
+
+        // returns vaule from mapping
         fn _get_debt_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError> {
             match self.debt_by_id.get(&vault_id) {
                 Some(v) => {
@@ -354,6 +386,8 @@ pub mod vault {
                 }
             }
         }
+
+        // returns value from mapping
         fn _get_collateral_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError> {
             match self.collateral_by_id.get(&vault_id) {
                 Some(v) => {
@@ -365,6 +399,7 @@ pub mod vault {
             }
         }
 
+        // returns value from mapping
         fn _get_last_interest_coefficient_by_id_e12(
             &self,
             vault_id: &u128,

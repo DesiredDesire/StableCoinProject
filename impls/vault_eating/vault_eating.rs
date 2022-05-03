@@ -7,7 +7,7 @@ use brush::modifiers;
 use brush::traits::AccountId;
 
 impl<T: VEatingStorage + OwnableStorage> VEating for T {
-    default fn eat_collateral_price_e12(&self) -> Result<u128, VEatingError> {
+    default fn eat_collateral_price_e6(&self) -> Result<u128, VEatingError> {
         match VFeedingRef::feed_price(&VEatingStorage::get(self).feeder_address) {
             Ok(v) => Ok(v),
             Err(e) => Err(VEatingError::from(e)),

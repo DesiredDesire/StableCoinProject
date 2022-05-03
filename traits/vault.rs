@@ -52,6 +52,7 @@ pub trait VaultInternal {
     fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError>;
     fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError>;
     fn _update_cuurent_interest_coefficient_e12(&mut self) -> Result<u128, VaultError>;
+    fn _get_current_interest_coefficient_e12(&self) -> Result<u128, VaultError>;
     fn _get_debt_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError>;
     fn _get_collateral_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError>;
     fn _get_last_interest_coefficient_by_id_e12(

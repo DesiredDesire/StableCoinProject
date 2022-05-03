@@ -12,7 +12,7 @@ pub type VEatingRef = dyn VEating;
 #[brush::trait_definition]
 pub trait VEating {
     #[ink(message)]
-    fn eat_collateral_price_e12(&self) -> Result<u128, VEatingError>;
+    fn eat_collateral_price_e6(&self) -> Result<u128, VEatingError>;
 
     #[ink(message)]
     fn eat_interest_rate_e12(&self) -> Result<u128, VEatingError>;
