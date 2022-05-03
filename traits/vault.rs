@@ -1,17 +1,24 @@
 use brush::{
     contracts::{
-        ownable::OwnableError, pausable::PausableError, psp22::PSP22Error, psp34::PSP34Error,
+        ownable::OwnableError, pausable::PausableError, psp34::PSP34Error, traits::ownable::*,
         traits::pausable::*,
     },
     traits::Balance,
 };
 
-use super::collateralling::CollaterallingError;
-use super::emiting::EmitingError;
+use crate::traits::collateralling::*;
+use crate::traits::eating::*;
+use crate::traits::emitting::*;
 
 /// Combination of all traits of the contract to simplify calls to the contract
 #[brush::wrapper]
-pub type VaultContractRef = dyn Vault + Pausable;
+pub type VaultContractRef = dyn Vault + Ownable + Pausable + Collateralling + Emitting + Eating;
+
+#[brush::trait_definition]
+pub trait VaultContractCheck:
+    Vault + Ownable + Pausable + Collateralling + Emitting + Eating
+{
+}
 
 #[brush::wrapper]
 pub type VaultRef = dyn Vault;
@@ -69,22 +76,16 @@ pub enum VaultError {
     CollateralAboveMinimum,
     DepositError,
     PSP34Error(PSP34Error),
-    PSP22Error(PSP22Error),
     PausableError(PausableError),
-    OwnableError(OwnableError),
-    EmitingError(EmitingError),
     CollaterallingError(CollaterallingError),
+    OwnableError(OwnableError),
+    EmittingError(EmittingError),
+    EatingError(EatingError),
 }
 
 impl From<PSP34Error> for VaultError {
     fn from(error: PSP34Error) -> Self {
         VaultError::PSP34Error(error)
-    }
-}
-
-impl From<PSP22Error> for VaultError {
-    fn from(error: PSP22Error) -> Self {
-        VaultError::PSP22Error(error)
     }
 }
 
@@ -100,12 +101,17 @@ impl From<PausableError> for VaultError {
     }
 }
 
-impl From<EmitingError> for VaultError {
-    fn from(error: EmitingError) -> Self {
-        VaultError::EmitingError(error)
+impl From<EmittingError> for VaultError {
+    fn from(error: EmittingError) -> Self {
+        VaultError::EmittingError(error)
     }
 }
 
+impl From<EatingError> for VaultError {
+    fn from(error: EatingError) -> Self {
+        VaultError::EatingError(error)
+    }
+}
 impl From<CollaterallingError> for VaultError {
     fn from(error: CollaterallingError) -> Self {
         VaultError::CollaterallingError(error)

@@ -10,5 +10,9 @@ declare_derive_storage_trait!(
     CollaterallingStorage,
     CollaterallingStorageField
 );
-declare_derive_storage_trait!(derive_emiting_storage, EmitingStorage, EmitingStorageField);
+declare_derive_storage_trait!(
+    derive_emitting_storage,
+    EmittingStorage,
+    EmittingStorageField
+);
 declare_derive_storage_trait!(derive_eating_storage, EatingStorage, EatingStorageField);

@@ -5,13 +5,13 @@ use brush::{
 
 /// Combination of all traits of the contract to simplify calls to the contract
 #[brush::wrapper]
-pub type EmitingContractRef = dyn Emiting + Pausable;
+pub type EmittingContractRef = dyn Emitting + Pausable;
 
 #[brush::wrapper]
-pub type EmitingRef = dyn Emiting;
+pub type EmittingRef = dyn Emitting;
 
 #[brush::trait_definition]
-pub trait Emiting {
+pub trait Emitting {
     #[ink(message)]
     fn emited_amount(&self) -> Balance;
 }
@@ -19,21 +19,21 @@ pub trait Emiting {
 /// Enum of errors raised by our lending smart contract
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub enum EmitingError {
+pub enum EmittingError {
     PausableError(PausableError),
 
     CouldntMint,
     PSP22Error(PSP22Error),
 }
 
-impl From<PausableError> for EmitingError {
+impl From<PausableError> for EmittingError {
     fn from(error: PausableError) -> Self {
-        EmitingError::PausableError(error)
+        EmittingError::PausableError(error)
     }
 }
 
-impl From<PSP22Error> for EmitingError {
+impl From<PSP22Error> for EmittingError {
     fn from(error: PSP22Error) -> Self {
-        EmitingError::PSP22Error(error)
+        EmittingError::PSP22Error(error)
     }
 }

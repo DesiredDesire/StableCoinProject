@@ -1,6 +1,6 @@
 pub mod collateralling;
 pub mod eating;
-pub mod emiting;
+pub mod emitting;
 pub mod feeding;
 pub mod managing;
 pub mod minter;

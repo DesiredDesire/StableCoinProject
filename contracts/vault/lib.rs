@@ -13,7 +13,7 @@ pub mod vault {
     use ink_storage::Mapping;
     use stable_coin_project::impls::collateralling::*;
     use stable_coin_project::impls::eating::*;
-    use stable_coin_project::impls::emiting::*;
+    use stable_coin_project::impls::emitting::*;
     use stable_coin_project::traits::vault::*;
 
     // const U128MAX: u128 = 340282366920938463463374607431768211455;
@@ -26,7 +26,7 @@ pub mod vault {
         PausableStorage,
         PSP34Storage,
         CollaterallingStorage,
-        EmitingStorage,
+        EmittingStorage,
         EatingStorage,
     )]
     pub struct VaultContract {
@@ -38,8 +38,8 @@ pub mod vault {
         psp34: PSP34Data,
         #[CollaterallingStorageField]
         collateral: CollaterallingData,
-        #[EmitingStorageField]
-        emit: EmitingData,
+        #[EmittingStorageField]
+        emit: EmittingData,
         #[EatingStorageField]
         eat: EatingData,
 
@@ -60,8 +60,8 @@ pub mod vault {
     impl Ownable for VaultContract {}
     impl Pausable for VaultContract {}
     impl PSP34 for VaultContract {}
-    impl EmitingInternal for VaultContract {}
-    impl Emiting for VaultContract {}
+    impl EmittingInternal for VaultContract {}
+    impl Emitting for VaultContract {}
     impl CollaterallingInternal for VaultContract {}
     impl Collateralling for VaultContract {}
     impl Eating for VaultContract {}
@@ -231,6 +231,7 @@ pub mod vault {
             Ok(())
         }
     }
+    impl VaultContractCheck for VaultContract {}
 
     #[ink(event)]
     pub struct Deposit {
