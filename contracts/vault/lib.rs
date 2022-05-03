@@ -3,7 +3,6 @@
 
 #[brush::contract]
 pub mod vault {
-    //TODO oprocentowanie debt
     use brush::contracts::psp34::PSP34Internal;
     use brush::{contracts::ownable::*, contracts::pausable::*, contracts::psp34::*, modifiers};
     use ink_lang::codegen::EmitEvent;
