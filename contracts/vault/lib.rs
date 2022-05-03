@@ -5,15 +5,13 @@
 pub mod vault {
     //TODO oprocentowanie debt
     use brush::contracts::psp34::PSP34Internal;
-    use brush::{
-        contracts::ownable::*, contracts::pausable::*, contracts::psp22::*, contracts::psp34::*,
-        modifiers,
-    };
+    use brush::{contracts::ownable::*, contracts::pausable::*, contracts::psp34::*, modifiers};
     use ink_lang::codegen::EmitEvent;
     use ink_lang::codegen::Env;
     use ink_prelude::vec::Vec;
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
+    use stable_coin_project::impls::collateralling::*;
     use stable_coin_project::impls::eating::*;
     use stable_coin_project::impls::emiting::*;
     use stable_coin_project::traits::vault::*;
@@ -24,11 +22,12 @@ pub mod vault {
     #[derive(
         Default,
         SpreadAllocate,
-        PSP34Storage,
+        OwnableStorage,
         PausableStorage,
+        PSP34Storage,
+        CollaterallingStorage,
         EmitingStorage,
         EatingStorage,
-        OwnableStorage,
     )]
     pub struct VaultContract {
         #[OwnableStorageField]
@@ -37,12 +36,12 @@ pub mod vault {
         pause: PausableData,
         #[PSP34StorageField]
         psp34: PSP34Data,
+        #[CollaterallingStorageField]
+        collateral: CollaterallingData,
         #[EmitingStorageField]
         emit: EmitingData,
         #[EatingStorageField]
         eat: EatingData,
-
-        pub collaterall_token_address: AccountId,
 
         pub collateral_by_id: Mapping<u128, Balance>,
         pub debt_by_id: Mapping<u128, Balance>,
@@ -63,6 +62,8 @@ pub mod vault {
     impl PSP34 for VaultContract {}
     impl EmitingInternal for VaultContract {}
     impl Emiting for VaultContract {}
+    impl CollaterallingInternal for VaultContract {}
+    impl Collateralling for VaultContract {}
     impl Eating for VaultContract {}
 
     impl Vault for VaultContract {
@@ -105,15 +106,8 @@ pub mod vault {
                 return Err(VaultError::VaultOwnership);
             }
 
-            if let Err(err) = PSP22Ref::transfer_from(
-                &self.collaterall_token_address,
-                vault_owner,
-                self.env().account_id(),
-                amount,
-                Vec::<u8>::new(),
-            ) {
-                return Err(From::from(err));
-            }
+            self._transfer_collateral_in(vault_owner, amount)?;
+
             let collateral = self._get_collateral_by_id(&vault_id)?;
             self.collateral_by_id
                 .insert(&vault_id, &(collateral + amount));
@@ -131,9 +125,10 @@ pub mod vault {
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
             }
-            let contract = self.env().account_id();
-            let collateral_address = self.collaterall_token_address;
             let vault_collateral = self._get_collateral_by_id(&vault_id)?;
+            if amount > vault_collateral {
+                return Err(VaultError::CollateralBelowMinimum);
+            }
             let vault_debt = self._update_vault_debt(&vault_id)?;
             let collateral_after = vault_collateral - amount;
             if vault_debt * self.minimum_collateral_coefficient_e6
@@ -142,18 +137,7 @@ pub mod vault {
                 return Err(VaultError::CollateralBelowMinimum);
             }
             self.collateral_by_id.insert(&vault_id, &collateral_after);
-            match PSP22Ref::transfer_from(
-                &(collateral_address),
-                contract,
-                vault_owner,
-                amount,
-                Vec::<u8>::new(),
-            ) {
-                Ok(..) => (),
-                Err(e) => {
-                    return Err(VaultError::from(e));
-                }
-            };
+            self._transfer_collateral_out(vault_owner, amount)?;
             self._emit_deposit_event(vault_id, collateral_after);
 
             Ok(())
@@ -384,13 +368,13 @@ pub mod vault {
     impl VaultContract {
         #[ink(constructor)]
         pub fn new(
-            collaterall_token_address: AccountId,
+            collateral_token_address: AccountId,
             emited_token_address: AccountId,
             feeder_address: AccountId,
             minimum_collateral_coefficient_e6: u128,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
-                instance.collaterall_token_address = collaterall_token_address;
+                instance.collateral.collateral_token_address = collateral_token_address;
                 instance.emit.emited_token_address = emited_token_address;
                 instance.minimum_collateral_coefficient_e6 = minimum_collateral_coefficient_e6;
                 instance.ownable.owner = instance.env().caller();

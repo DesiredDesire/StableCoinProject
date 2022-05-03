@@ -6,6 +6,7 @@ use brush::{
     traits::Balance,
 };
 
+use super::collateralling::CollaterallingError;
 use super::emiting::EmitingError;
 
 /// Combination of all traits of the contract to simplify calls to the contract
@@ -72,6 +73,7 @@ pub enum VaultError {
     PausableError(PausableError),
     OwnableError(OwnableError),
     EmitingError(EmitingError),
+    CollaterallingError(CollaterallingError),
 }
 
 impl From<PSP34Error> for VaultError {
@@ -101,5 +103,11 @@ impl From<PausableError> for VaultError {
 impl From<EmitingError> for VaultError {
     fn from(error: EmitingError) -> Self {
         VaultError::EmitingError(error)
+    }
+}
+
+impl From<CollaterallingError> for VaultError {
+    fn from(error: CollaterallingError) -> Self {
+        VaultError::CollaterallingError(error)
     }
 }
