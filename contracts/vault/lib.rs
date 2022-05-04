@@ -82,7 +82,6 @@ pub mod vault {
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
             }
-
             if self._get_debt_by_id(&vault_id)? != 0 {
                 return Err(VaultError::HasDebt);
             }
@@ -105,11 +104,13 @@ pub mod vault {
                 return Err(VaultError::VaultOwnership);
             }
 
-            self._transfer_collateral_in(vault_owner, amount)?;
-
+            // transfer in and increase collateral
             let collateral = self._get_collateral_by_id(&vault_id)?;
+            self._transfer_collateral_in(vault_owner, amount)?;
             self.collateral_by_id
                 .insert(&vault_id, &(collateral + amount));
+
+            // /event
             self._emit_deposit_event(vault_id, collateral);
             Ok(())
         }
@@ -125,22 +126,28 @@ pub mod vault {
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
             }
+
+            // check if there is enought collateral to withdraw
             let vault_collateral = self._get_collateral_by_id(&vault_id)?;
             if amount > vault_collateral {
                 return Err(VaultError::CollateralBelowMinimum);
             }
+
+            // check if after withdraw vault is not undercollaterized
             let vault_debt = self._update_vault_debt(&vault_id)?;
             let collateral_after = vault_collateral - amount;
-
             if vault_debt * self.eat_minimum_collateral_coefficient_e6()?
                 >= self._collateral_value_e6(collateral_after).unwrap_or(0)
             {
                 return Err(VaultError::CollateralBelowMinimum);
             }
+
+            // transfer out and decrease collateral
             self.collateral_by_id.insert(&vault_id, &collateral_after);
             self._transfer_collateral_out(vault_owner, amount)?;
-            self._emit_deposit_event(vault_id, collateral_after);
 
+            //event
+            self._emit_deposit_event(vault_id, collateral_after);
             Ok(())
         }
 
@@ -163,6 +170,8 @@ pub mod vault {
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
             }
+
+            // check if after borrow vault is not undercollaterized
             let debt_ceiling: Balance = match self._get_debt_ceiling(vault_id) {
                 Ok(v) => v,
                 Err(e) => {
@@ -173,9 +182,13 @@ pub mod vault {
             if debt + amount >= debt_ceiling {
                 return Err(VaultError::CollateralBelowMinimum);
             }
+
+            // increase debt and borrow tokens
             self.debt_by_id.insert(&vault_id, &(debt + amount));
             self.total_debt += amount;
             self._mint_emited_token(vault_owner, amount)?;
+
+            //event
             self._emit_borrow_event(vault_id, debt + amount);
             Ok(())
         }
@@ -206,6 +219,8 @@ pub mod vault {
         fn buy_risky_vault(&mut self, vault_id: u128) -> Result<(), VaultError> {
             let caller = self.env().caller();
             let vault_owner: AccountId = self.owner_of(Id::U128(vault_id)).unwrap_or_default();
+
+            //check if debt_ceiling >= debt, if it is return, else continiue and buy risky vault
             let debt_ceiling: Balance = match self._get_debt_ceiling(vault_id) {
                 Ok(v) => v,
                 Err(e) => {
@@ -213,17 +228,17 @@ pub mod vault {
                 }
             };
             let debt = self._update_vault_debt(&vault_id)?;
-
-            if debt_ceiling > debt {
+            if debt_ceiling >= debt {
                 return Err(VaultError::CollateralAboveMinimum);
             }
 
+            // regulating vault so it is not undercollaterized
             let minimum_to_pay = (debt - debt_ceiling) + 1;
             self._burn_emited_token(caller, minimum_to_pay)?;
-
             self.debt_by_id.insert(&vault_id, &(debt - minimum_to_pay));
             self.total_debt -= minimum_to_pay;
-            self._emit_pay_back_event(vault_id, debt - minimum_to_pay);
+
+            // transferting PSP34 ownership
             self._remove_token(&vault_owner, &Id::U128(vault_id))?;
             self._do_safe_transfer_check(
                 &caller,
@@ -233,7 +248,11 @@ pub mod vault {
                 &Vec::<u8>::new(),
             )?;
             self._add_token(&caller, &Id::U128(vault_id))?;
+
+            // events
+            self._emit_pay_back_event(vault_id, debt - minimum_to_pay);
             self._emit_transfer_event(Some(vault_owner), Some(caller), Id::U128(vault_id));
+
             Ok(())
         }
     }
@@ -334,17 +353,21 @@ pub mod vault {
 
         // updates current interest coefficient, updates vaults debt and increments stored interest
         fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError> {
+            // get state
             let current_interest_coefficient_e12 =
                 self._update_cuurent_interest_coefficient_e12()?;
             let last_interest_coefficient_e12 =
                 self._get_last_interest_coefficient_by_id_e12(&vault_id)?;
             let debt = self._get_debt_by_id(&vault_id)?;
+
+            // update
             let updated_debt =
                 debt * current_interest_coefficient_e12 / last_interest_coefficient_e12;
             self.earned_interest += updated_debt - debt;
             self.debt_by_id.insert(&vault_id, &updated_debt);
             self.last_interest_coefficient_by_id_e12
                 .insert(&vault_id, &current_interest_coefficient_e12);
+
             Ok(updated_debt)
         }
 
