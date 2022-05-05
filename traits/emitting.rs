@@ -1,6 +1,6 @@
 use brush::{
     contracts::{psp22::PSP22Error, traits::pausable::*},
-    traits::Balance,
+    traits::{AccountId, Balance},
 };
 
 /// Combination of all traits of the contract to simplify calls to the contract
@@ -14,6 +14,9 @@ pub type EmittingRef = dyn Emitting;
 pub trait Emitting {
     #[ink(message)]
     fn emited_amount(&self) -> Balance;
+
+    #[ink(message)]
+    fn get_emited_token_address(&self) -> AccountId;
 }
 
 /// Enum of errors raised by our lending smart contract

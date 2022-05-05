@@ -31,6 +31,10 @@ impl<T: CollaterallingStorage + OwnableStorage> Collateralling for T {
         }
         Ok(())
     }
+
+    default fn get_collateral_token_address(&self) -> AccountId {
+        CollaterallingStorage::get(self).collateral_token_address
+    }
 }
 
 pub trait CollaterallingInternal {

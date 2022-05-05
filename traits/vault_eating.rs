@@ -25,6 +25,9 @@ pub trait VEating {
 
     #[ink(message)]
     fn change_feeder(&mut self, new_feeder_address: AccountId) -> Result<(), VEatingError>;
+
+    #[ink(message)]
+    fn get_feeder_address(&self) -> AccountId;
 }
 
 pub trait VEatingInternal {

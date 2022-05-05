@@ -46,6 +46,10 @@ impl<T: VEatingStorage + OwnableStorage> VEating for T {
         );
         Ok(())
     }
+
+    default fn get_feeder_address(&self) -> AccountId {
+        VEatingStorage::get(self).feeder_address
+    }
 }
 
 impl<T: VEatingStorage + OwnableStorage> VEatingInternal for T {

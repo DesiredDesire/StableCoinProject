@@ -10,6 +10,9 @@ impl<T: EmittingStorage> Emitting for T {
     default fn emited_amount(&self) -> Balance {
         EmittingStorage::get(self).emited_amount
     }
+    default fn get_emited_token_address(&self) -> AccountId {
+        EmittingStorage::get(self).emited_token_address
+    }
 }
 
 pub trait EmittingInternal {

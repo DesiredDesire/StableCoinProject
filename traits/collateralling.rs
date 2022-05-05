@@ -22,6 +22,9 @@ pub trait Collateralling {
         to: AccountId,
         amount: Balance,
     ) -> Result<(), CollaterallingError>;
+
+    #[ink(message)]
+    fn get_collateral_token_address(&self) -> AccountId;
 }
 
 /// Enum of errors raised by our lending smart contract

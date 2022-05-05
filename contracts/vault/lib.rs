@@ -3,6 +3,7 @@
 
 #[brush::contract]
 pub mod vault {
+    //TODO withdraw earned_interest;
     use brush::contracts::psp34::PSP34Internal;
     use brush::{contracts::ownable::*, contracts::pausable::*, contracts::psp34::*, modifiers};
     use ink_lang::codegen::EmitEvent;
@@ -36,9 +37,9 @@ pub mod vault {
         pause: PausableData,
         #[PSP34StorageField] // vault ownership
         psp34: PSP34Data,
-        #[CollaterallingStorageField] // collateral_token_address
+        #[CollaterallingStorageField] // collateral_token_address && collateral_amount
         collateral: CollaterallingData,
-        #[EmittingStorageField] // emited_token_address
+        #[EmittingStorageField] // emited_token_address && emited_amount
         emit: EmittingData,
         #[VEatingStorageField] // feeder_contract_ address
         eat: VEatingData,
@@ -362,7 +363,7 @@ pub mod vault {
 
             // update
             let updated_debt =
-                debt * current_interest_coefficient_e12 / last_interest_coefficient_e12;
+                debt * current_interest_coefficient_e12 / last_interest_coefficient_e12 + 1; // round up
             self.earned_interest += updated_debt - debt;
             self.debt_by_id.insert(&vault_id, &updated_debt);
             self.last_interest_coefficient_by_id_e12
@@ -445,10 +446,13 @@ pub mod vault {
             feeder_address: AccountId,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
+                instance.ownable.owner = instance.env().caller();
                 instance.collateral.collateral_token_address = collateral_token_address;
                 instance.emit.emited_token_address = emited_token_address;
-                instance.ownable.owner = instance.env().caller();
                 instance.eat.feeder_address = feeder_address;
+                instance.current_interest_coefficient_e12 = E12;
+                instance.last_interest_coefficient_e12_update =
+                    instance.env().block_number() as u128;
             })
         }
         #[ink(message)]
@@ -568,19 +572,30 @@ pub mod vault {
         }
     }
 
-    // #[ink::test]
-    // fn constructor_works() {
-    //     // Constructor works.
-    //     let accounts = accounts();
-    //     let mut vault = VaultContract::new(None, None, DECIMALS);
-    //     // Transfer event triggered during initial construction.
-    //     let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
-    //     assert_eq!(emitted_events.len(), 1);
-    //     assert_e1!(vault.owner_of(), accounts.alice);
-    //     // Get the token total supply.
-    //     assert_eq!(psp22.total_supply(), 0);
-    //     assert_eq!(psp22.taxed_supply(), 0);
-    //     assert_eq!(psp22.untaxed_supply(), 0);
-    //     assert_eq!(psp22.undivided_taxed_supply(), 0);
-    // }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use brush::test_utils::{accounts, change_caller};
+        use brush::traits::AccountId;
+        use ink_lang as ink;
+        type Event = <VaultContract as ::ink_lang::reflect::ContractEventBase>::Type;
+        use ink_env::test::DefaultAccounts;
+        use ink_env::DefaultEnvironment;
+
+        #[ink::test]
+        fn constructor_works() {
+            // Constructor works.
+            let accounts = accounts();
+            let mut vault = VaultContract::new(accounts.bob, accounts.charlie, accounts.alice);
+            // Transfer event triggered during initial construction.
+            let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_eq!(emitted_events.len(), 1);
+            assert_eq!(vault.owner(), accounts.alice);
+            // Get the token total supply.
+
+            assert_eq!(vault.get_collateral_token_address(), accounts.bob);
+            assert_eq!(vault.get_emited_token_address(), accounts.charlie);
+            assert_eq!(vault.get_feeder_address(), accounts.alice);
+        }
+    }
 }

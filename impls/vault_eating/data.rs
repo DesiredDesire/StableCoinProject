@@ -15,10 +15,6 @@ use ink_storage::traits::StorageLayout;
 /// this will isolate the logic of our smart contract from its storage
 pub struct VEatingData {
     pub feeder_address: AccountId,
-
-    pub price_e12: u128,
-    pub interest_rate_e12: u128,
-    pub minimum_collateral_coefficient_e6: u128,
 }
 
 declare_storage_trait!(VEatingStorage, VEatingData);
