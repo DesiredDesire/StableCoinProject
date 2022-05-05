@@ -1,5 +1,5 @@
 [package]
-name = "stable_coin_contract"
+name = "minter_contract"
 version = "0.0.1"
 authors = [""]
 edition = "2021"
