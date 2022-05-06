@@ -14,7 +14,7 @@ use ink_storage::traits::StorageLayout;
 /// define the struct with the data that our smart contract will be using
 /// this will isolate the logic of our smart contract from its storage
 pub struct EatingData {
-    pub feeder_address: AccountId,
+    pub vault_feeder_address: AccountId,
 }
 
 declare_storage_trait!(EatingStorage, EatingData);

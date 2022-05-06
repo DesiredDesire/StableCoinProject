@@ -4,6 +4,7 @@ pub mod emitting;
 pub mod feeding;
 pub mod managing;
 pub mod minter;
+pub mod price_feeding;
 pub mod stable_coin;
 pub mod vault;
 pub mod vault_eating;

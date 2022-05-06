@@ -21,3 +21,8 @@ declare_derive_storage_trait!(
     VEatingStorage,
     VEatingStorageField
 );
+declare_derive_storage_trait!(
+    derive_vault_feeding_storage,
+    VFeedingStorage,
+    VFeedingStorageField
+);

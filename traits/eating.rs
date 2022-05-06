@@ -15,7 +15,7 @@ pub trait Eating {
     fn eat_collateral_price(&self) -> Result<u128, EatingError>;
 
     #[ink(message)]
-    fn change_feeder(&mut self, new_feeder_address: AccountId) -> Result<(), EatingError>;
+    fn change_feeder(&mut self, new_vault_feeder_address: AccountId) -> Result<(), EatingError>;
 }
 
 pub trait EatingInternal {
