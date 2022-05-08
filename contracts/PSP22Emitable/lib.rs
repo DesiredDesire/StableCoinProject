@@ -18,7 +18,6 @@ pub mod psp22_emitable {
 
     const MINTER: RoleType = ink_lang::selector_id!("MINTER");
     const BURNER: RoleType = ink_lang::selector_id!("BURNER");
-    const SETTER: RoleType = ink_lang::selector_id!("SETTER");
 
     #[ink(storage)]
     #[derive(

@@ -4,8 +4,6 @@
 #[brush::contract]
 pub mod lending {
     use brush::contracts::pausable::*;
-    use ink_lang::ToAccountId;
-    use ink_prelude::string::String;
     use ink_storage::traits::SpreadAllocate;
     use stable_coin_project::impls::minter::*;
 

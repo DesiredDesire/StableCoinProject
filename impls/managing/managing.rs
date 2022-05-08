@@ -1,28 +1,18 @@
 pub use crate::traits::managing::*;
 
 use brush::{
-    contracts::{access_control::*, ownable::*, psp22::*},
+    contracts::{access_control::*, ownable::*},
     modifiers,
     traits::AccountId,
 };
 
-impl<T: PSP22Storage + OwnableStorage + AccessControlStorage> Managing for T {
-    default fn get_minter(&self) -> u32 {
-        ink_lang::selector_id!("MINTER")
-    }
-    default fn get_setter(&self) -> u32 {
-        ink_lang::selector_id!("BURNER")
-    }
-    default fn get_burner(&self) -> u32 {
-        ink_lang::selector_id!("SETTER")
-    }
-
+impl<T: OwnableStorage + AccessControlStorage> Managing for T {
     #[modifiers(only_owner)]
     default fn set_role_admin(
         &mut self,
         role: RoleType,
         new_admin: RoleType,
-    ) -> Result<(), PSP22Error> {
+    ) -> Result<(), ManagingError> {
         self._set_role_admin(role, new_admin);
         Ok(())
     }
@@ -32,7 +22,7 @@ impl<T: PSP22Storage + OwnableStorage + AccessControlStorage> Managing for T {
         &mut self,
         role: RoleType,
         new_member: AccountId,
-    ) -> Result<(), OwnableError> {
+    ) -> Result<(), ManagingError> {
         self._setup_role(role, new_member);
         Ok(())
     }
