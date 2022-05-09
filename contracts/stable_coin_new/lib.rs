@@ -10,13 +10,12 @@ pub mod stable_coin {
         contracts::psp22::extensions::burnable::*,
         contracts::psp22::extensions::metadata::*,
         contracts::psp22::extensions::mintable::*,
-        contracts::psp22::*,
         modifiers,
         traits::{AccountIdExt, Flush},
     };
     use stable_coin_project::traits::managing::*;
     use stable_coin_project::traits::psp22_rated::*;
-    use stable_coin_project::traits::system::SystemRef;
+    use stable_coin_project::traits::stable_controlling::*;
 
     use ink_env::{CallFlags, Error as EnvError};
     use ink_lang::codegen::EmitEvent;
@@ -26,7 +25,7 @@ pub mod stable_coin {
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
-    const E12: u128 = 1000000000000;
+    // const E12: u128 = 1000000000000;
 
     #[ink(storage)]
     #[derive(
@@ -164,7 +163,7 @@ pub mod stable_coin {
                 return unupdated_balance;
             }
             let applied_denominator_e12 = self._applied_denominator_e12(owner);
-            let (is_interest_on, current_denominator_e12) = self._get_interest_rate_status();
+            let current_denominator_e12 = self._get_current_denominator_e12();
             if current_denominator_e12 > applied_denominator_e12 {
                 let denominator_difference_e12 = current_denominator_e12 - applied_denominator_e12;
                 let to_add =
@@ -236,9 +235,9 @@ pub mod stable_coin {
             // self._before_token_transfer(Some(&account), None, &amount)?;
             self._do_safe_transfer_check(&from, &to, &amount, &data)?;
 
-            let (is_interest_on, current_denominator_e12) = self._update_interest_rate_status()?;
-            self._decrease_balance(from, amount, is_interest_on, current_denominator_e12)?;
-            self._increase_balance(from, amount, is_interest_on, current_denominator_e12);
+            let current_denominator_e12 = self._update_current_denominator_e12()?;
+            self._decrease_balance(from, amount, current_denominator_e12)?;
+            self._increase_balance(from, amount, current_denominator_e12);
             // self._after_token_transfer(Some(&account), None, &amount)?;
             self._emit_transfer_event(Some(from), Some(to), amount);
             Ok(())
@@ -267,8 +266,8 @@ pub mod stable_coin {
             }
             // self._before_token_transfer(Some(&account), None, &amount)?;
 
-            let (is_interest_on, current_denominator_e12) = self._update_interest_rate_status()?;
-            self._increase_balance(account, amount, is_interest_on, current_denominator_e12);
+            let current_denominator_e12 = self._update_current_denominator_e12()?;
+            self._increase_balance(account, amount, current_denominator_e12);
             self.psp22.supply += amount;
 
             // self._after_token_transfer(Some(&account), None, &amount)?;
@@ -282,8 +281,8 @@ pub mod stable_coin {
             }
             // self._before_token_transfer(Some(&account), None, &amount)?;
 
-            let (is_interest_on, current_denominator_e12) = self._update_interest_rate_status()?;
-            self._decrease_balance(account, amount, is_interest_on, current_denominator_e12)?;
+            let current_denominator_e12 = self._update_current_denominator_e12()?;
+            self._decrease_balance(account, amount, current_denominator_e12)?;
             self.psp22.supply -= amount;
 
             // self._after_token_transfer(Some(&account), None, &amount)?;
@@ -326,7 +325,7 @@ pub mod stable_coin {
         fn set_is_unrated(&mut self, account: AccountId, set_to: bool) -> Result<(), PSP22Error> {
             let is_unrated: bool = self._is_unrated(&account);
             if is_unrated != set_to {
-                self._switch_is_unrated(account); //TODO : erroe propagation
+                self._switch_is_unrated(account)?; //TODO : erroe propagation
             }
             Ok(())
         }
@@ -351,50 +350,25 @@ pub mod stable_coin {
         }
     }
 
-    pub trait PSP22RatedInternals {
-        fn _unupdated_balance_of(&self, account: &AccountId) -> Balance;
-        fn _is_unrated(&self, account: &AccountId) -> bool;
-        fn _applied_denominator_e12(&self, account: &AccountId) -> u128;
-        fn _get_interest_rate_status(&self) -> (bool, u128);
-        fn _update_interest_rate_status(&mut self) -> Result<(bool, u128), PSP22Error>;
-        fn _add_collected_interests(&mut self, amount: Balance);
-        fn _sub_collected_interests(&mut self, amount: Balance);
-        fn _switch_is_unrated(&mut self, account: AccountId) -> Result<(), PSP22Error>;
-        fn _increase_balance(
-            &mut self,
-            account: AccountId,
-            amount: Balance,
-            is_interest_on: bool,
-            current_denominator_e12: u128,
-        );
-        fn _decrease_balance(
-            &mut self,
-            account: AccountId,
-            amount: Balance,
-            is_interest_on: bool,
-            current_denominator_e12: u128,
-        ) -> Result<(), PSP22Error>;
-    }
-
     impl PSP22RatedInternals for StableCoinContract {
         fn _unupdated_balance_of(&self, account: &AccountId) -> Balance {
-            self.psp22.balances.get(account).unwrap_or(0) //TODO check
+            self.psp22.balances.get(account).unwrap_or(0)
         }
 
         fn _is_unrated(&self, account: &AccountId) -> bool {
-            self.is_unrated.get(account).unwrap_or(false) //TODO check
+            self.is_unrated.get(account).unwrap_or(false)
         }
 
         fn _applied_denominator_e12(&self, account: &AccountId) -> u128 {
             self.applied_denominator_e12.get(account).unwrap_or(0) //TODO check
         }
 
-        fn _get_interest_rate_status(&self) -> (bool, u128) {
-            SystemRef::get_stablecoin_interest_rate_status(&self.system_address)
+        fn _get_current_denominator_e12(&self) -> u128 {
+            SControllingRef::get_current_denominator_e12(&self.system_address)
         }
 
-        fn _update_interest_rate_status(&mut self) -> Result<(bool, u128), PSP22Error> {
-            match SystemRef::update_stablecoin_interest_rate_status(&self.system_address) {
+        fn _update_current_denominator_e12(&mut self) -> Result<u128, PSP22Error> {
+            match SControllingRef::update_current_denominator_e12(&self.system_address) {
                 Ok(v) => Ok(v),
                 Err(_) => Err(PSP22Error::InsufficientBalance), //TODO Custom ERROR!!!
             }
@@ -430,8 +404,7 @@ pub mod stable_coin {
         }
 
         fn _switch_is_unrated(&mut self, account: AccountId) -> Result<(), PSP22Error> {
-            let unupdated_balance = self._unupdated_balance_of(&account);
-            let (is_interest_on, current_denominator_e12) = self._update_interest_rate_status()?;
+            let current_denominator_e12 = self._update_current_denominator_e12()?;
             if self._is_unrated(&account) {
                 self.is_unrated.insert(&account, &(false));
             } else {
@@ -471,106 +444,94 @@ pub mod stable_coin {
             &mut self,
             account: AccountId,
             amount: Balance,
-            is_interest_on: bool,
             current_denominator_e12: u128,
         ) {
             let unupdated_balance: Balance = self._unupdated_balance_of(&account);
 
-            if !is_interest_on {
-                self.psp22
-                    .balances
-                    .insert(&account, &(unupdated_balance + amount));
-            } else {
-                if !self._is_unrated(&account) {
-                    let applied_denominator_e12 = self._applied_denominator_e12(&account);
-                    // negative interest rates
-                    if current_denominator_e12 > applied_denominator_e12 {
-                        let denominator_difference_e12 =
-                            current_denominator_e12 - applied_denominator_e12;
-                        let to_substract = unupdated_balance * denominator_difference_e12
-                            / current_denominator_e12
-                            + 1; //round up
-                        self.psp22
-                            .balances
-                            .insert(&account, &(unupdated_balance - to_substract + amount));
-                        self._add_collected_interests(to_substract);
-                        self.rated_supply = self.rated_supply - to_substract + amount;
-                        // positive interest rates
-                    } else if current_denominator_e12 < applied_denominator_e12 {
-                        let denominator_difference_e12 =
-                            applied_denominator_e12 - current_denominator_e12;
-                        let to_add = unupdated_balance * denominator_difference_e12
-                            / current_denominator_e12
-                            - 1; //round down
-                        self.psp22
-                            .balances
-                            .insert(&account, &(unupdated_balance + to_add + amount));
-                        self._sub_collected_interests(to_add);
-                        self.rated_supply = self.rated_supply + to_add + amount;
-                    }
+            if !self._is_unrated(&account) {
+                let applied_denominator_e12 = self._applied_denominator_e12(&account);
+                // negative interest rates
+                if current_denominator_e12 > applied_denominator_e12 {
+                    let denominator_difference_e12 =
+                        current_denominator_e12 - applied_denominator_e12;
+                    let to_substract = unupdated_balance * denominator_difference_e12
+                        / current_denominator_e12
+                        + 1; //round up
+                    self.psp22
+                        .balances
+                        .insert(&account, &(unupdated_balance - to_substract + amount));
+                    self._add_collected_interests(to_substract);
+                    self.rated_supply = self.rated_supply - to_substract + amount;
+                    // positive interest rates
+                } else if current_denominator_e12 < applied_denominator_e12 {
+                    let denominator_difference_e12 =
+                        applied_denominator_e12 - current_denominator_e12;
+                    let to_add = unupdated_balance * denominator_difference_e12
+                        / current_denominator_e12
+                        - 1; //round down
+                    self.psp22
+                        .balances
+                        .insert(&account, &(unupdated_balance + to_add + amount));
+                    self._sub_collected_interests(to_add);
+                    self.rated_supply = self.rated_supply + to_add + amount;
                 } else {
                     self.psp22
                         .balances
                         .insert(&account, &(unupdated_balance + amount));
-                    self.unrated_supply += amount;
+                    self.rated_supply += amount;
                 }
-                self.applied_denominator_e12
-                    .insert(&account, &current_denominator_e12);
+            } else {
+                self.psp22
+                    .balances
+                    .insert(&account, &(unupdated_balance + amount));
+                self.unrated_supply += amount;
             }
+            self.applied_denominator_e12
+                .insert(&account, &current_denominator_e12);
         }
 
         fn _decrease_balance(
             &mut self,
             account: AccountId,
             amount: Balance,
-            is_interest_on: bool,
             current_denominator_e12: u128,
         ) -> Result<(), PSP22Error> {
             let unupdated_balance: Balance = self._unupdated_balance_of(&account);
 
-            if !is_interest_on {
-                if amount > unupdated_balance {
-                    return Err(PSP22Error::InsufficientBalance);
-                }
-                self.psp22
-                    .balances
-                    .insert(&account, &(unupdated_balance - amount));
-            } else {
-                if !self._is_unrated(&account) {
-                    let applied_denominator_e12 = self._applied_denominator_e12(&account);
-                    // negative interest rates
-                    if current_denominator_e12 > applied_denominator_e12 {
-                        let denominator_difference_e12 =
-                            current_denominator_e12 - applied_denominator_e12;
-                        let to_substract = unupdated_balance * denominator_difference_e12
-                            / current_denominator_e12
-                            + 1; //round up
-                        let updated_balance = unupdated_balance - to_substract;
-                        if amount > updated_balance {
-                            return Err(PSP22Error::InsufficientBalance);
-                        }
-                        self.psp22
-                            .balances
-                            .insert(&account, &(updated_balance - amount));
-                        self._add_collected_interests(to_substract);
-                        self.rated_supply = self.rated_supply - to_substract - amount;
-                        // positive interest rates
-                    } else if current_denominator_e12 < applied_denominator_e12 {
-                        let denominator_difference_e12 =
-                            applied_denominator_e12 - current_denominator_e12;
-                        let to_add = unupdated_balance * denominator_difference_e12
-                            / current_denominator_e12
-                            - 1; //round down
-                        let updated_balance = unupdated_balance + to_add;
-                        if amount > updated_balance {
-                            return Err(PSP22Error::InsufficientBalance);
-                        }
-                        self.psp22
-                            .balances
-                            .insert(&account, &(updated_balance + amount));
-                        self._sub_collected_interests(to_add);
-                        self.rated_supply = self.rated_supply + to_add - amount;
+            if !self._is_unrated(&account) {
+                let applied_denominator_e12 = self._applied_denominator_e12(&account);
+                // negative interest rates
+                if current_denominator_e12 > applied_denominator_e12 {
+                    let denominator_difference_e12 =
+                        current_denominator_e12 - applied_denominator_e12;
+                    let to_substract = unupdated_balance * denominator_difference_e12
+                        / current_denominator_e12
+                        + 1; //round up
+                    let updated_balance = unupdated_balance - to_substract;
+                    if amount > updated_balance {
+                        return Err(PSP22Error::InsufficientBalance);
                     }
+                    self.psp22
+                        .balances
+                        .insert(&account, &(updated_balance - amount));
+                    self._add_collected_interests(to_substract);
+                    self.rated_supply = self.rated_supply - to_substract - amount;
+                    // positive interest rates
+                } else if current_denominator_e12 < applied_denominator_e12 {
+                    let denominator_difference_e12 =
+                        applied_denominator_e12 - current_denominator_e12;
+                    let to_add = unupdated_balance * denominator_difference_e12
+                        / current_denominator_e12
+                        - 1; //round down
+                    let updated_balance = unupdated_balance + to_add;
+                    if amount > updated_balance {
+                        return Err(PSP22Error::InsufficientBalance);
+                    }
+                    self.psp22
+                        .balances
+                        .insert(&account, &(updated_balance + amount));
+                    self._sub_collected_interests(to_add);
+                    self.rated_supply = self.rated_supply + to_add - amount;
                 } else {
                     if amount > unupdated_balance {
                         return Err(PSP22Error::InsufficientBalance);
@@ -578,11 +539,20 @@ pub mod stable_coin {
                     self.psp22
                         .balances
                         .insert(&account, &(unupdated_balance - amount));
-                    self.unrated_supply -= amount;
+                    self.rated_supply -= amount;
                 }
-                self.applied_denominator_e12
-                    .insert(&account, &current_denominator_e12);
+            } else {
+                if amount > unupdated_balance {
+                    return Err(PSP22Error::InsufficientBalance);
+                }
+                self.psp22
+                    .balances
+                    .insert(&account, &(unupdated_balance - amount));
+                self.unrated_supply -= amount;
             }
+            self.applied_denominator_e12
+                .insert(&account, &current_denominator_e12);
+
             Ok(())
         }
     }
@@ -699,7 +669,7 @@ pub mod stable_coin {
         //     let amount_to_mint = 100;
         //     let accounts = accounts();
         //     change_caller(accounts.alice);
-        //     let mut psp22 = StableCoinContract::new(None, None, DECIMALS, accounts.alice, accounts.alice);
+        //     let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
         //     assert!(psp22.setup_role(MINTER, accounts.bob).is_ok());
 
         //     change_caller(accounts.bob);
@@ -709,5 +679,15 @@ pub mod stable_coin {
 
         /// OWNABLE TEST
 
+        #[ink::test]
+        fn constructor_works() {
+            let accounts = accounts();
+            change_caller(accounts.alice);
+            let instance =
+                StableCoinContract::new(None, None, DECIMALS, accounts.bob, accounts.charlie);
+
+            let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
+            assert_eq!(2, emitted_events.len());
         }
+    }
 }

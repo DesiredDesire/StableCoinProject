@@ -448,13 +448,13 @@ pub mod vault {
         pub fn new(
             collateral_token_address: AccountId,
             emited_token_address: AccountId,
-            vault_feeder_address: AccountId,
+            vault_controller_address: AccountId,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
                 instance.ownable.owner = instance.env().caller();
                 instance.collateral.collateral_token_address = collateral_token_address;
                 instance.emit.emited_token_address = emited_token_address;
-                instance.eat.vault_feeder_address = vault_feeder_address;
+                instance.eat.vault_controller_address = vault_controller_address;
                 instance.current_interest_coefficient_e12 = E12;
                 instance.last_interest_coefficient_e12_update =
                     instance.env().block_number() as u128;
@@ -605,7 +605,7 @@ pub mod vault {
 
             assert_eq!(vault.get_collateral_token_address(), accounts.bob);
             assert_eq!(vault.get_emited_token_address(), accounts.charlie);
-            assert_eq!(vault.get_vault_feeder_address(), accounts.alice);
+            assert_eq!(vault.get_vault_controller_address(), accounts.alice);
         }
     }
 }

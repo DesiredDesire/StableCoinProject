@@ -9,10 +9,13 @@ pub type SystemRef = dyn System;
 #[brush::trait_definition]
 pub trait System {
     #[ink(message)]
-    fn update_stablecoin_interest_rate_status(&mut self) -> Result<(bool, u128), SystemError>;
+    fn update_stablecoin_interest_rate(&mut self) -> Result<u128, SystemError>; // TODO move to stablecoin feeder
 
     #[ink(message)]
-    fn get_stablecoin_interest_rate_status(&self) -> (bool, u128);
+    fn get_stablecoin_interest_rate(&self) -> u128;
+
+    #[ink(message)]
+    fn update_stability_measure_parameter(&mut self) -> Result<u8, SystemError>;
 }
 
 pub trait SystemInternal {}

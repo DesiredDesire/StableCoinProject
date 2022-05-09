@@ -35,3 +35,27 @@ pub trait PSP22Rated {
     #[ink(message)]
     fn collect_interest_income(&mut self) -> Result<(), PSP22Error>;
 }
+
+#[brush::trait_definition]
+pub trait PSP22RatedInternals {
+    fn _unupdated_balance_of(&self, account: &AccountId) -> Balance;
+    fn _is_unrated(&self, account: &AccountId) -> bool;
+    fn _applied_denominator_e12(&self, account: &AccountId) -> u128;
+    fn _get_current_denominator_e12(&self) -> u128;
+    fn _update_current_denominator_e12(&mut self) -> Result<u128, PSP22Error>;
+    fn _add_collected_interests(&mut self, amount: Balance);
+    fn _sub_collected_interests(&mut self, amount: Balance);
+    fn _switch_is_unrated(&mut self, account: AccountId) -> Result<(), PSP22Error>;
+    fn _increase_balance(
+        &mut self,
+        account: AccountId,
+        amount: Balance,
+        current_denominator_e12: u128,
+    );
+    fn _decrease_balance(
+        &mut self,
+        account: AccountId,
+        amount: Balance,
+        current_denominator_e12: u128,
+    ) -> Result<(), PSP22Error>;
+}
