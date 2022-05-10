@@ -7,7 +7,7 @@ use brush::{
 };
 use ink_storage::traits::{SpreadAllocate, SpreadLayout};
 // it is public because when you will import the trait you also will import the derive for the trait
-pub use stable_coin_project_derive::CollaterallingStorage;
+pub use stable_coin_project_derive::MeasuringStorage;
 
 #[cfg(feature = "std")]
 use ink_storage::traits::StorageLayout;
