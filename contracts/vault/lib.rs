@@ -540,7 +540,6 @@ pub mod vault {
                 instance.current_interest_coefficient_e12 = E12;
                 instance.last_interest_coefficient_timestamp = instance.env().block_timestamp();
                 instance.oracle_address = oracle_address;
-                instance.controller_address = controller_address;
                 instance.interest_rate_stap_value_e12 = interest_rate_stap_value_e12;
                 instance.maximum_minimum_collateral_coefficient_e6 =
                     maximum_minimum_collateral_coefficient_e6;
