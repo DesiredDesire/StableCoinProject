@@ -1,7 +1,6 @@
 use brush::{contracts::traits::ownable::*, traits::AccountId};
 
 use super::price_feeding::PFeedingError;
-use super::vault_controlling::VControllingError;
 
 /// Combination of all traits of the contract to simplify calls to the contract
 #[brush::wrapper]
@@ -47,15 +46,8 @@ pub trait VEatingInternal {
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum VEatingError {
-    VControllingError(VControllingError),
     PFeedingError(PFeedingError),
     OwnableError(OwnableError),
-}
-
-impl From<VControllingError> for VEatingError {
-    fn from(error: VControllingError) -> Self {
-        VEatingError::VControllingError(error)
-    }
 }
 
 impl From<PFeedingError> for VEatingError {

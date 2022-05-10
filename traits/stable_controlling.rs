@@ -1,6 +1,6 @@
 use brush::contracts::traits::ownable::*;
 
-use super::system::SystemError;
+use super::measuring::*;
 
 #[brush::wrapper]
 pub type SControllingContractRef = dyn SControlling;
@@ -38,7 +38,7 @@ pub trait SControllingInternal {
 pub enum SControllingError {
     CouldntFeed,
     OwnableError(OwnableError),
-    SystemError(SystemError),
+    MeasuringError(MeasuringError),
 }
 
 impl From<OwnableError> for SControllingError {
@@ -47,8 +47,8 @@ impl From<OwnableError> for SControllingError {
     }
 }
 
-impl From<SystemError> for SControllingError {
-    fn from(error: SystemError) -> Self {
-        SControllingError::SystemError(error)
+impl From<MeasuringError> for SControllingError {
+    fn from(error: MeasuringError) -> Self {
+        SControllingError::MeasuringError(error)
     }
 }

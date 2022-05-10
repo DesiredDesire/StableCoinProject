@@ -26,3 +26,15 @@ declare_derive_storage_trait!(
     VControllingStorage,
     VControllingStorageField
 );
+
+declare_derive_storage_trait!(
+    derive_measuring_storage,
+    MeasuringStorage,
+    MeasuringStorageField
+);
+
+declare_derive_storage_trait!(
+    derive_oracling_storage,
+    OraclingStorage,
+    OraclingStorageField
+);

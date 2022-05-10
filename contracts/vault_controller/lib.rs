@@ -13,7 +13,7 @@ pub mod lending {
         #[OwnableStorageField]
         owner: OwnableData,
         #[VControllingStorageField]
-        feed: VControllingData,
+        control: VControllingData,
     }
 
     impl Ownable for VControllerContract {}
@@ -25,18 +25,10 @@ pub mod lending {
     impl VControllerContract {
         /// constructor with name and symbol
         #[ink(constructor)]
-        pub fn new(
-            system_address: AccountId,
-            interest_rate_step_e12: u128,
-            minimum_collateral_coef_step_e6: u128,
-            stable_coin_interest_rate_step_e12: u128,
-        ) -> Self {
+        pub fn new(measurer_address: AccountId, vault_address: AccountId) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VControllerContract| {
-                instance.feed.system_address = system_address;
-                instance.feed.interest_rate_step_e12 = interest_rate_step_e12;
-                instance.feed.minimum_collateral_coef_step_e6 = minimum_collateral_coef_step_e6;
-                instance.feed.stable_coin_interest_rate_step_e12 =
-                    stable_coin_interest_rate_step_e12;
+                instance.control.measurer_address = measurer_address;
+                instance.control.vault_address = vault_address;
             })
         }
     }

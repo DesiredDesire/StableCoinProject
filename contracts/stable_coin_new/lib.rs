@@ -50,6 +50,9 @@ pub mod stable_coin {
         pub rated_supply: Balance,
         pub unrated_supply: Balance,
 
+        pub current_denominator_e12: u128,
+        pub last_current_denominator_update_timestamp: Timestamp,
+        pub current_interest_rate_e12: i128,
         pub applied_denominator_e12: Mapping<AccountId, u128>,
 
         pub interest_income: Balance,
@@ -163,7 +166,7 @@ pub mod stable_coin {
                 return unupdated_balance;
             }
             let applied_denominator_e12 = self._applied_denominator_e12(owner);
-            let current_denominator_e12 = self._get_current_denominator_e12();
+            let current_denominator_e12 = self.current_denominator_e12;
             if current_denominator_e12 > applied_denominator_e12 {
                 let denominator_difference_e12 = current_denominator_e12 - applied_denominator_e12;
                 let to_add =
@@ -235,7 +238,7 @@ pub mod stable_coin {
             // self._before_token_transfer(Some(&account), None, &amount)?;
             self._do_safe_transfer_check(&from, &to, &amount, &data)?;
 
-            let current_denominator_e12 = self._update_current_denominator_e12()?;
+            let current_denominator_e12 = self._update_current_denominator_e12();
             self._decrease_balance(from, amount, current_denominator_e12)?;
             self._increase_balance(from, amount, current_denominator_e12);
             // self._after_token_transfer(Some(&account), None, &amount)?;
@@ -266,7 +269,7 @@ pub mod stable_coin {
             }
             // self._before_token_transfer(Some(&account), None, &amount)?;
 
-            let current_denominator_e12 = self._update_current_denominator_e12()?;
+            let current_denominator_e12 = self._update_current_denominator_e12();
             self._increase_balance(account, amount, current_denominator_e12);
             self.psp22.supply += amount;
 
@@ -281,7 +284,7 @@ pub mod stable_coin {
             }
             // self._before_token_transfer(Some(&account), None, &amount)?;
 
-            let current_denominator_e12 = self._update_current_denominator_e12()?;
+            let current_denominator_e12 = self._update_current_denominator_e12();
             self._decrease_balance(account, amount, current_denominator_e12)?;
             self.psp22.supply -= amount;
 
@@ -343,6 +346,10 @@ pub mod stable_coin {
             Ok(())
         }
 
+        fn update_current_denominator_e12(&mut self) -> u128 {
+            self._update_current_denominator_e12()
+        }
+
         #[ink(message)]
         fn collect_interest_income(&mut self) -> Result<(), PSP22Error> {
             let interest_income: Balance = self.interest_income;
@@ -363,15 +370,14 @@ pub mod stable_coin {
             self.applied_denominator_e12.get(account).unwrap_or(0) //TODO check
         }
 
-        fn _get_current_denominator_e12(&self) -> u128 {
-            SControllingRef::get_current_denominator_e12(&self.system_address)
-        }
+        fn _update_current_denominator_e12(&mut self) -> u128 {
+            let updated_denominator = self.current_denominator_e12
+                * (((self.env().block_timestamp() - self.last_current_denominator_update_timestamp)
+                    as i128
+                    * self.current_interest_rate_e12) as u128);
 
-        fn _update_current_denominator_e12(&mut self) -> Result<u128, PSP22Error> {
-            match SControllingRef::update_current_denominator_e12(&self.system_address) {
-                Ok(v) => Ok(v),
-                Err(_) => Err(PSP22Error::InsufficientBalance), //TODO Custom ERROR!!!
-            }
+            self.current_denominator_e12 = updated_denominator;
+            updated_denominator
         }
 
         fn _add_collected_interests(&mut self, amount: Balance) {
@@ -404,7 +410,7 @@ pub mod stable_coin {
         }
 
         fn _switch_is_unrated(&mut self, account: AccountId) -> Result<(), PSP22Error> {
-            let current_denominator_e12 = self._update_current_denominator_e12()?;
+            let current_denominator_e12 = self._update_current_denominator_e12();
             if self._is_unrated(&account) {
                 self.is_unrated.insert(&account, &(false));
             } else {
