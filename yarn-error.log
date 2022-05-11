@@ -1,0 +1,77 @@
+Arguments: 
+  /home/lukas/.nvm/versions/node/v16.15.0/bin/node /usr/local/bin/yarn install --check-files
+
+PATH: 
+  /home/lukas/anaconda3/bin:/home/lukas/anaconda3/bin:/home/lukas/.sdkman/candidates/gradle/current/bin:/home/lukas/.nvm/versions/node/v16.15.0/bin:/home/lukas/.cargo/bin:/home/lukas/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
+
+Yarn version: 
+  1.22.18
+
+Node version: 
+  16.15.0
+
+Platform: 
+  linux x64
+
+Trace: 
+  SyntaxError: /home/lukas/.cache/yarn/v6/npm-@polkadot-apps-config-0.95.1-b77e6d3e0eb0e4dd2a31c18d9f3cb8cfce6f96ff-integrity/node_modules/@polkadot/apps-config/.yarn-metadata.json: Unexpected end of JSON input
+      at JSON.parse (<anonymous>)
+      at /usr/local/lib/node_modules/yarn/lib/cli.js:1625:59
+      at Generator.next (<anonymous>)
+      at step (/usr/local/lib/node_modules/yarn/lib/cli.js:310:30)
+      at /usr/local/lib/node_modules/yarn/lib/cli.js:321:13
+
+npm manifest: 
+  {
+    "name": "stablecoinproject",
+    "version": "0.0.1",
+    "private": true,
+    "engines": {
+      "node": ">=14.x"
+    },
+    "resolutions": {
+      "@polkadot/api": "6.3.1",
+      "@polkadot/api-contract": "6.3.1",
+      "@polkadot/types": "6.3.1",
+      "@polkadot/util": "7.4.1",
+      "@polkadot/keyring": "7.4.1",
+      "@polkadot/types-known": "6.3.1",
+      "@polkadot/util-crypto": "7.4.1",
+      "@polkadot/x-randomvalues": "7.4.1",
+      "@polkadot/metadata": "4.17.1",
+      "@polkadot/x-textdecoder": "7.4.1",
+      "@polkadot/api-derive": "6.3.1",
+      "@polkadot/rpc-core": "6.3.1",
+      "@polkadot/rpc-provider": "6.3.1",
+      "@polkadot/x-global": "7.4.1",
+      "@polkadot/networks": "7.4.1",
+      "typescript": "^4.3.2"
+    },
+    "dependencies": {
+      "@redspot/chai": "0.13.1",
+      "@redspot/decimals": "0.13.1",
+      "@redspot/explorer": "0.13.1",
+      "@redspot/gas-reporter": "0.13.1",
+      "@redspot/known-types": "0.13.1",
+      "@redspot/patract": "0.13.1",
+      "@redspot/watcher": "0.13.1",
+      "@types/chai": "^4.2.14",
+      "@types/mocha": "^8.0.3",
+      "chai": "^4.2.0",
+      "redspot": "0.13.1",
+      "typescript": "^4.3.2"
+    },
+    "module": "true",
+    "scripts": {
+      "build": "npx redspot compile",
+      "test": "npx redspot test --no-compile",
+      "explorer": "npx redspot explorer",
+      "deploy": "npx redspot run scripts/deploy.ts --no-compile"
+    }
+  }
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile

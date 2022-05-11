@@ -69,10 +69,15 @@ pub mod vault {
         fn create_vault(&mut self) -> Result<(), VaultError> {
             let caller = self.env().caller();
             let next_id = self.next_id;
+            
             self._mint_to(caller, Id::U128(next_id))?;
+            self.debt_by_id.insert(&next_id, &(0));
+            self.collateral_by_id.insert(&next_id, &(0));
+
             self.next_id += 1;
             Ok(())
         }
+
         // burns a NFT from a caller that represent vault
         #[ink(message)]
         fn destroy_vault(&mut self, vault_id: u128) -> Result<(), VaultError> {
@@ -453,6 +458,7 @@ pub mod vault {
                 instance.current_interest_coefficient_e12 = E12;
                 instance.last_interest_coefficient_e12_update =
                     instance.env().block_number() as u128;
+                instance.next_id = 0;
             })
         }
         #[ink(message)]
@@ -460,6 +466,10 @@ pub mod vault {
         pub fn pause(&mut self) -> Result<(), VaultError> {
             //TODO check if pause is implementen in Pausable for VaultContract
             self._pause()
+        }
+        #[ink(message)]
+        pub fn get_next_id(&mut self) -> u128 {
+            self.next_id
         }
     }
 
