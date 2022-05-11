@@ -528,7 +528,6 @@ pub mod vault {
             oracle_address: AccountId,
             collateral_token_address: AccountId,
             emited_token_address: AccountId,
-            controller_address: AccountId,
             interest_rate_stap_value_e12: i128,
             maximum_minimum_collateral_coefficient_e6: u128,
             collateral_step_value_e6: u128,
