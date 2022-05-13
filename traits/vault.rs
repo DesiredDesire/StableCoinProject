@@ -42,7 +42,7 @@ pub trait Vault {
     fn be_controlled(
         &mut self,
         interest_rate_step: i16,
-        collateral_step: u8,
+        collateral_step: u16,
         stable_coin_interest_rate_step: i16,
     ) -> Result<(), VaultError>;
     #[ink(message)]
