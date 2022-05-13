@@ -1,6 +1,7 @@
 pub use super::data::*;
 pub use crate::traits::measuring::*;
 pub use crate::traits::vault::*;
+pub use crate::traits::vault_controlling::*;
 
 impl<T: VControllingStorage> VControlling for T {
     default fn control_vault(&mut self) -> Result<(), VControllingError> {

@@ -28,6 +28,12 @@ declare_derive_storage_trait!(
 );
 
 declare_derive_storage_trait!(
+    derive_stable_controlling_storage,
+    SControllingStorage,
+    SControllingStorageField
+);
+
+declare_derive_storage_trait!(
     derive_measuring_storage,
     MeasuringStorage,
     MeasuringStorageField

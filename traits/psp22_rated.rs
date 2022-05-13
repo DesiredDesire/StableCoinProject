@@ -35,7 +35,17 @@ pub trait PSP22Rated {
     #[ink(message)]
     fn collect_interest_income(&mut self) -> Result<(), PSP22Error>;
 
+    #[ink(message)]
     fn update_current_denominator_e12(&mut self) -> u128;
+
+    #[ink(message)]
+    fn be_controlled(&mut self, new_interest_rate: i128) -> Result<(), PSP22Error>;
+
+    #[ink(message)]
+    fn set_controller_address(
+        &mut self,
+        new_controller_address: AccountId,
+    ) -> Result<(), PSP22Error>;
 }
 
 #[brush::trait_definition]
