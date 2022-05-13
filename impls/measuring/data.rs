@@ -1,10 +1,13 @@
 // importing everything publicly from traits allows you to import every stuff related to lending
 // by one import
-pub use crate::traits::eating::*;
-use brush::{declare_storage_trait, traits::AccountId};
+pub use crate::traits::measuring::*;
+use brush::{
+    declare_storage_trait,
+    traits::{AccountId, Timestamp},
+};
 use ink_storage::traits::{SpreadAllocate, SpreadLayout};
 // it is public because when you will import the trait you also will import the derive for the trait
-pub use stable_coin_project_derive::EatingStorage;
+pub use stable_coin_project_derive::MeasuringStorage;
 
 #[cfg(feature = "std")]
 use ink_storage::traits::StorageLayout;
@@ -13,8 +16,10 @@ use ink_storage::traits::StorageLayout;
 #[cfg_attr(feature = "std", derive(StorageLayout))]
 /// define the struct with the data that our smart contract will be using
 /// this will isolate the logic of our smart contract from its storage
-pub struct EatingData {
-    pub vault_controller_address: AccountId,
+pub struct MeasuringData {
+    pub oracle_address: AccountId,
+    pub stability_measure: u8,
+    pub measurement_timestamp: Timestamp,
 }
 
-declare_storage_trait!(EatingStorage, EatingData);
+declare_storage_trait!(MeasuringStorage, MeasuringData);

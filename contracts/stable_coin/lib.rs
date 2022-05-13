@@ -778,7 +778,7 @@ pub mod stable_coin {
         use brush::test_utils::{accounts, change_caller};
         use brush::traits::AccountId;
         use ink_lang as ink;
-        type Event = <MyStable as ::ink_lang::reflect::ContractEventBase>::Type;
+        type Event = <StableCoinContract as ::ink_lang::reflect::ContractEventBase>::Type;
         use ink_env::test::DefaultAccounts;
         use ink_env::DefaultEnvironment;
 
@@ -790,7 +790,7 @@ pub mod stable_coin {
         //     let amount_to_mint = 100;
         //     let accounts = accounts();
         //     change_caller(accounts.alice);
-        //     let mut psp22 = MyStable::new(None, None, DECIMALS);
+        //     let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
         //     assert!(psp22.setup_role(MINTER, accounts.bob).is_ok());
 
         //     change_caller(accounts.bob);
@@ -804,7 +804,7 @@ pub mod stable_coin {
         fn constructor_works() {
             let accounts = accounts();
             change_caller(accounts.alice);
-            let instance = MyStable::new(None, None, DECIMALS);
+            let instance = StableCoinContract::new(None, None, DECIMALS);
 
             let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
             assert_eq!(2, emitted_events.len());
@@ -839,14 +839,14 @@ pub mod stable_coin {
 
         #[ink::test]
         fn owner_works() {
-            let my_ownable = MyStable::new(None, None, DECIMALS);
+            let my_ownable = StableCoinContract::new(None, None, DECIMALS);
             let caller = my_ownable.env().caller();
             assert_eq!(my_ownable.owner(), caller)
         }
 
         #[ink::test]
         fn renounce_ownership_works() {
-            let mut my_ownable = MyStable::new(None, None, DECIMALS);
+            let mut my_ownable = StableCoinContract::new(None, None, DECIMALS);
             let caller = my_ownable.env().caller();
             let creator = my_ownable.owner();
             assert_eq!(creator, caller);
@@ -860,7 +860,7 @@ pub mod stable_coin {
 
         #[ink::test]
         fn renounce_ownership_fails() {
-            let mut my_ownable = MyStable::new(None, None, DECIMALS);
+            let mut my_ownable = StableCoinContract::new(None, None, DECIMALS);
             // Change the caller of `renounce_ownership` method.
             change_caller(AccountId::from([0x13; 32]));
             let result = my_ownable.renounce_ownership();
@@ -870,7 +870,7 @@ pub mod stable_coin {
 
         #[ink::test]
         fn transfer_ownership_works() {
-            let mut my_ownable = MyStable::new(None, None, DECIMALS);
+            let mut my_ownable = StableCoinContract::new(None, None, DECIMALS);
             let caller = my_ownable.env().caller();
             let creator = my_ownable.owner();
             assert_eq!(creator, caller);
@@ -885,7 +885,7 @@ pub mod stable_coin {
 
         #[ink::test]
         fn transfer_ownership_fails() {
-            let mut my_ownable = MyStable::new(None, None, DECIMALS);
+            let mut my_ownable = StableCoinContract::new(None, None, DECIMALS);
             // Change the caller of `transfer_ownership` method.
             change_caller(AccountId::from([0x13; 32]));
             let new_owner = AccountId::from([5u8; 32]);
@@ -897,7 +897,7 @@ pub mod stable_coin {
 
         #[ink::test]
         fn transfer_ownership_fails_zero_account() {
-            let mut my_ownable = MyStable::new(None, None, DECIMALS);
+            let mut my_ownable = StableCoinContract::new(None, None, DECIMALS);
             let new_owner = AccountId::from([0u8; 32]);
             assert_eq!(
                 my_ownable.transfer_ownership(new_owner),
@@ -1009,7 +1009,7 @@ pub mod stable_coin {
         #[ink::test]
         fn should_init_with_default_admin() {
             let accounts = setup();
-            let access_control = MyStable::new(None, None, DECIMALS);
+            let access_control = StableCoinContract::new(None, None, DECIMALS);
             assert!(access_control.has_role(DEFAULT_ADMIN_ROLE, accounts.alice));
             assert_eq!(
                 access_control.get_role_admin(DEFAULT_ADMIN_ROLE),
@@ -1023,7 +1023,7 @@ pub mod stable_coin {
         fn should_grant_role() {
             let accounts = setup();
             let alice = accounts.alice;
-            let mut access_control = MyStable::new(None, None, DECIMALS);
+            let mut access_control = StableCoinContract::new(None, None, DECIMALS);
 
             assert!(access_control.grant_role(SETTER, alice).is_ok());
             assert!(access_control.grant_role(MINTER, alice).is_ok());
@@ -1045,7 +1045,7 @@ pub mod stable_coin {
         fn should_grant_role_fail() {
             let accounts = setup();
             let alice = accounts.alice;
-            let mut access_control = MyStable::new(None, None, DECIMALS);
+            let mut access_control = StableCoinContract::new(None, None, DECIMALS);
 
             assert!(access_control.grant_role(MINTER, alice).is_ok());
             assert_eq!(
@@ -1057,7 +1057,7 @@ pub mod stable_coin {
         #[ink::test]
         fn should_revoke_role() {
             let accounts = setup();
-            let mut access_control = MyStable::new(None, None, DECIMALS);
+            let mut access_control = StableCoinContract::new(None, None, DECIMALS);
 
             assert!(access_control.grant_role(SETTER, accounts.bob).is_ok());
             assert!(access_control.has_role(SETTER, accounts.bob));
@@ -1079,7 +1079,7 @@ pub mod stable_coin {
         #[ink::test]
         fn should_renounce_role() {
             let accounts = setup();
-            let mut access_control = MyStable::new(None, None, DECIMALS);
+            let mut access_control = StableCoinContract::new(None, None, DECIMALS);
             change_caller(accounts.alice);
 
             assert!(access_control.grant_role(SETTER, accounts.eve).is_ok());
@@ -1103,7 +1103,7 @@ pub mod stable_coin {
         #[ink::test]
         fn should_change_role_admin() {
             let accounts = setup();
-            let mut access_control = MyStable::new(None, None, DECIMALS);
+            let mut access_control = StableCoinContract::new(None, None, DECIMALS);
 
             assert!(access_control.grant_role(MINTER, accounts.eve).is_ok());
             access_control._set_role_admin(SETTER, MINTER);
@@ -1128,7 +1128,7 @@ pub mod stable_coin {
         #[ink::test]
         fn should_return_error_when_not_admin_grant_role() {
             let accounts = setup();
-            let mut access_control = MyStable::new(None, None, DECIMALS);
+            let mut access_control = StableCoinContract::new(None, None, DECIMALS);
 
             assert!(access_control.grant_role(MINTER, accounts.eve).is_ok());
             assert!(access_control.grant_role(SETTER, accounts.bob).is_ok());
@@ -1143,7 +1143,7 @@ pub mod stable_coin {
         #[ink::test]
         fn should_return_error_when_not_admin_revoke_role() {
             let accounts = setup();
-            let mut access_control = MyStable::new(None, None, DECIMALS);
+            let mut access_control = StableCoinContract::new(None, None, DECIMALS);
 
             assert!(access_control.grant_role(MINTER, accounts.eve).is_ok());
             assert!(access_control.grant_role(SETTER, accounts.bob).is_ok());
@@ -1160,7 +1160,7 @@ pub mod stable_coin {
         #[ink::test]
         fn should_return_error_when_not_self_renounce_role() {
             let accounts = setup();
-            let mut access_control = MyStable::new(None, None, DECIMALS);
+            let mut access_control = StableCoinContract::new(None, None, DECIMALS);
 
             assert!(access_control.grant_role(SETTER, accounts.bob).is_ok());
             assert_eq!(
@@ -1173,7 +1173,7 @@ pub mod stable_coin {
         fn should_return_error_when_account_doesnt_have_role() {
             let accounts = setup();
             change_caller(accounts.alice);
-            let mut access_control = MyStable::new(None, None, DECIMALS);
+            let mut access_control = StableCoinContract::new(None, None, DECIMALS);
 
             assert_eq!(
                 access_control.renounce_role(SETTER, accounts.alice),
@@ -1236,7 +1236,7 @@ pub mod stable_coin {
         #[ink::test]
         fn constructor_works_taxed_coin() {
             // Constructor works.
-            let mut psp22 = MyStable::new(None, None, DECIMALS);
+            let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
             // Transfer event triggered during initial construction.
             let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
             assert_eq!(emitted_events.len(), 2);
@@ -1252,7 +1252,7 @@ pub mod stable_coin {
         fn transfer_event_is_emited_on_mint() {
             let accounts = accounts();
             // Constructor works.
-            let mut psp22 = MyStable::new(None, None, DECIMALS);
+            let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
             // grant minter role and mint
             assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             let mut emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
@@ -1270,7 +1270,7 @@ pub mod stable_coin {
         fn total_supply_works() {
             let accounts = accounts();
             // Constructor works.
-            let mut psp22 = MyStable::new(None, None, DECIMALS);
+            let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
             // grant minter role and mint
             assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
@@ -1289,7 +1289,7 @@ pub mod stable_coin {
         fn balance_of_works() {
             let accounts = accounts();
             // Constructor works.
-            let mut psp22 = MyStable::new(None, None, DECIMALS);
+            let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
             // grant minter role and mint
             assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
@@ -1311,7 +1311,7 @@ pub mod stable_coin {
         // fn taxing_works_() {
         //     let accounts = accounts();
         //     // Constructor works.
-        //     let mut psp22 = MyStable::new(None, None, DECIMALS);
+        //     let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
         //     // grant minter role and mint
         //     psp22.grant_role(MINTER, accounts.bob);
         //     psp22.mint(accounts.charlie, E12);
@@ -1332,7 +1332,7 @@ pub mod stable_coin {
         fn transfer_works() {
             let accounts = accounts();
             // Constructor works.
-            let mut psp22 = MyStable::new(None, None, DECIMALS);
+            let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
             // grant minter role and mint
             assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
@@ -1372,7 +1372,7 @@ pub mod stable_coin {
         fn invalid_transfer_should_fail() {
             let accounts = accounts();
             // Constructor works.
-            let mut psp22 = MyStable::new(None, None, DECIMALS);
+            let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
             // grant minter role and mint
             assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
@@ -1389,7 +1389,7 @@ pub mod stable_coin {
         fn transfer_from_fails() {
             let accounts = accounts();
             // Constructor works.
-            let mut psp22 = MyStable::new(None, None, DECIMALS);
+            let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
             // grant minter role and mint
             assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
@@ -1406,7 +1406,7 @@ pub mod stable_coin {
         fn transfer_from_works() {
             let accounts = accounts();
             // Constructor works.
-            let mut psp22 = MyStable::new(None, None, DECIMALS);
+            let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
             // grant minter role and mint
             assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);
@@ -1444,7 +1444,7 @@ pub mod stable_coin {
         fn allowance_must_not_change_on_failed_transfer() {
             let accounts = accounts();
             // Constructor works.
-            let mut psp22 = MyStable::new(None, None, DECIMALS);
+            let mut psp22 = StableCoinContract::new(None, None, DECIMALS);
             // grant minter role and mint
             assert!(psp22.grant_role(MINTER, accounts.bob).is_ok());
             change_caller(accounts.bob);

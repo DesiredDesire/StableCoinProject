@@ -3,7 +3,7 @@
 
 #[brush::contract]
 pub mod vault {
-    //TODO withdraw earned_interest;
+    //TODO withdraw interest_income payback interest debt;
     use brush::contracts::psp34::PSP34Internal;
     use brush::{contracts::ownable::*, contracts::pausable::*, contracts::psp34::*, modifiers};
     use ink_lang::codegen::EmitEvent;
@@ -13,7 +13,7 @@ pub mod vault {
     use ink_storage::Mapping;
     use stable_coin_project::impls::collateralling::*;
     use stable_coin_project::impls::emitting::*;
-    use stable_coin_project::impls::vault_eating::*;
+    use stable_coin_project::traits::oracling::OraclingRef;
     use stable_coin_project::traits::vault::*;
 
     // const U128MAX: u128 = 340282366920938463463374607431768211455;
@@ -28,7 +28,6 @@ pub mod vault {
         PSP34Storage,
         CollaterallingStorage,
         EmittingStorage,
-        VEatingStorage,
     )]
     pub struct VaultContract {
         #[OwnableStorageField]
@@ -41,18 +40,29 @@ pub mod vault {
         collateral: CollaterallingData,
         #[EmittingStorageField] // emited_token_address && emited_amount
         emit: EmittingData,
-        #[VEatingStorageField] // feeder_contract_ address
-        eat: VEatingData,
 
+        pub oracle_address: AccountId,
+
+        pub maximum_minimum_collateral_coefficient_e6: u128,
         pub collateral_by_id: Mapping<u128, Balance>,
         pub debt_by_id: Mapping<u128, Balance>,
-        pub last_interest_coefficient_by_id_e12: Mapping<u128, u128>, // the last interest coefficient (acumulated interest) used for vault with id
-        pub current_interest_coefficient_e12: u128, // the current interest coefficient (acmulated interest)
-        pub last_interest_coefficient_e12_update: u128, // last block number when current_interest_coefficient_e12 was updated
         pub total_debt: Balance,
         pub next_id: u128,
 
-        pub earned_interest: Balance, // amount of emitted token that can be mint, collecting debt interest
+        pub last_interest_coefficient_by_id_e12: Mapping<u128, u128>, // the last interest coefficient (acumulated interest) used for vault with id
+        pub last_interest_coefficient_timestamp: Timestamp, // last block number when current_interest_coefficient_e12 was updated
+
+        pub current_interest_coefficient_e12: u128, // the current interest coefficient (acmulated interest)
+        pub current_interest_rate_e12: i128,
+        pub current_minimum_collateral_coefficient_e6: u128,
+
+        pub controller_address: AccountId,
+
+        //TODO TOTHINK
+        pub interest_rate_stap_value_e12: i128,
+        pub collateral_step_value_e6: u128,
+        pub interest_income: Balance, // amount of emitted token that can be mint, collecting debt interest
+        pub interest_debt: Balance,
     }
     impl Ownable for VaultContract {} // owner can pause contract
     impl Pausable for VaultContract {} // when paused borrowing is imposible
@@ -61,7 +71,6 @@ pub mod vault {
     impl Emitting for VaultContract {} // emited_amount() = minted - burned
     impl CollaterallingInternal for VaultContract {} // transfer in, transfer out
     impl Collateralling for VaultContract {} // rescue[only_owner], amount of collaterall
-    impl VEating for VaultContract {} // source of collateral_price, interest_rate and minimum_collateral_amount
 
     impl Vault for VaultContract {
         // mints a NFT to caller that represent vault
@@ -142,7 +151,7 @@ pub mod vault {
             // check if after withdraw vault is not undercollaterized
             let vault_debt = self._update_vault_debt(&vault_id)?;
             let collateral_after = vault_collateral - amount;
-            if vault_debt * self.eat_minimum_collateral_coefficient_e6()?
+            if vault_debt * self.current_minimum_collateral_coefficient_e6
                 >= self._collateral_value_e6(collateral_after).unwrap_or(0)
             {
                 return Err(VaultError::CollateralBelowMinimum);
@@ -261,6 +270,37 @@ pub mod vault {
 
             Ok(())
         }
+
+        #[ink(message)]
+        fn be_controlled(
+            &mut self,
+            current_interest_rate_step: i16,
+            current_collateral_step: u8,
+            current_stable_coin_interest_rate_step: i16,
+        ) -> Result<(), VaultError> {
+            let caller = self.env().caller();
+            if caller != self.controller_address {
+                return Err(VaultError::VaultController);
+            }
+
+            self.current_interest_rate_e12 =
+                current_interest_rate_step as i128 * self.interest_rate_stap_value_e12;
+
+            self.current_minimum_collateral_coefficient_e6 = self
+                .maximum_minimum_collateral_coefficient_e6
+                - current_collateral_step as u128 * self.collateral_step_value_e6;
+            Ok(())
+        }
+
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        fn set_controller_address(
+            &mut self,
+            controller_address: AccountId,
+        ) -> Result<(), VaultError> {
+            self.controller_address = controller_address;
+            Ok(())
+        }
     }
     pub trait VaultView {
         fn get_total_debt(&self) -> Balance;
@@ -341,13 +381,13 @@ pub mod vault {
         // return maximal debt for a vault
         fn _get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError> {
             let debt_ceiling = self._vault_collateral_value_e6(vault_id)?
-                / self.eat_minimum_collateral_coefficient_e6()?;
+                / self.current_minimum_collateral_coefficient_e6;
             Ok(debt_ceiling)
         }
 
         // collateral amount -> collateral value
         fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError> {
-            let collateral_price_e6 = self.eat_collateral_price_e6()?;
+            let collateral_price_e6 = OraclingRef::get_azero_usd_price_e6(&self.oracle_address);
             Ok(collateral * collateral_price_e6)
         }
 
@@ -361,7 +401,7 @@ pub mod vault {
         fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError> {
             // get state
             let current_interest_coefficient_e12 =
-                self._update_cuurent_interest_coefficient_e12()?;
+                self._update_current_interest_coefficient_e12()?;
             let last_interest_coefficient_e12 =
                 self._get_last_interest_coefficient_by_id_e12(&vault_id)?;
             let debt = self._get_debt_by_id(&vault_id)?;
@@ -369,7 +409,12 @@ pub mod vault {
             // update
             let updated_debt =
                 debt * current_interest_coefficient_e12 / last_interest_coefficient_e12 + 1; // round up
-            self.earned_interest += updated_debt - debt;
+            if updated_debt > debt {
+                self._add_collected_interests(updated_debt - debt);
+            } else if updated_debt < debt {
+                self._sub_collected_interests(debt - updated_debt);
+            }
+            //TODO calculate share toekn rewards and mint
             self.debt_by_id.insert(&vault_id, &updated_debt);
             self.last_interest_coefficient_by_id_e12
                 .insert(&vault_id, &current_interest_coefficient_e12);
@@ -378,14 +423,16 @@ pub mod vault {
         }
 
         // calculates, updates and returns current interest coefficient
-        fn _update_cuurent_interest_coefficient_e12(&mut self) -> Result<u128, VaultError> {
-            let block_number: u128 = self.env().block_number() as u128;
-            let last_block_number = self.last_interest_coefficient_e12_update;
-            if block_number > last_block_number {
-                self.last_interest_coefficient_e12_update = block_number;
-                let interest_rate = self.eat_interest_rate_e12()?;
+        fn _update_current_interest_coefficient_e12(&mut self) -> Result<u128, VaultError> {
+            let block_timestamp = self.env().block_timestamp();
+            let last_block_timestamp = self.last_interest_coefficient_timestamp;
+            if block_timestamp > last_block_timestamp {
+                self.last_interest_coefficient_timestamp = block_timestamp;
+                let interest_rate: i128 = self.current_interest_rate_e12;
                 self.current_interest_coefficient_e12 = self.current_interest_coefficient_e12
-                    * (E12 + (block_number - last_block_number) * interest_rate)
+                    * (E12 as i128
+                        + (block_timestamp - last_block_timestamp) as i128 * interest_rate)
+                        as u128
                     / E12;
             }
             Ok(self.current_interest_coefficient_e12)
@@ -393,12 +440,16 @@ pub mod vault {
 
         // calculates and retuns current interest coefficient
         fn _get_current_interest_coefficient_e12(&self) -> Result<u128, VaultError> {
-            let block_number: u128 = self.env().block_number() as u128;
-            let last_block_number = self.last_interest_coefficient_e12_update;
+            let block_timestamp = self.env().block_timestamp();
+            let last_block_timestamp = self.last_interest_coefficient_timestamp;
             let mut ret = self.current_interest_coefficient_e12;
-            if block_number > last_block_number {
-                let interest_rate = self.eat_interest_rate_e12()?;
-                ret = ret * (E12 + (block_number - last_block_number) * interest_rate) / E12;
+            if block_timestamp > last_block_timestamp {
+                let interest_rate = self.current_interest_rate_e12;
+                ret = ret
+                    * (E12 as i128
+                        + (block_timestamp - last_block_timestamp) as i128 * interest_rate)
+                        as u128
+                    / E12;
             }
             Ok(ret)
         }
@@ -441,23 +492,59 @@ pub mod vault {
                 }
             }
         }
+        fn _add_collected_interests(&mut self, amount: Balance) {
+            let interest_debt = self.interest_debt;
+            if interest_debt > 0 {
+                if amount > interest_debt {
+                    let interest_income = amount - interest_debt;
+                    self.interest_debt = 0;
+                    self.interest_income = interest_income;
+                } else if amount < interest_debt {
+                    self.interest_debt = interest_debt - amount;
+                } else {
+                    self.interest_debt = 0;
+                }
+            }
+        }
+        fn _sub_collected_interests(&mut self, amount: Balance) {
+            let interest_income = self.interest_income;
+            if interest_income > 0 {
+                if amount > interest_income {
+                    let interest_debt = amount - interest_income;
+                    self.interest_income = 0;
+                    self.interest_debt = interest_debt;
+                } else if amount < interest_income {
+                    self.interest_income = interest_income - amount;
+                } else {
+                    self.interest_income = 0;
+                }
+            }
+        }
     }
 
     impl VaultContract {
         #[ink(constructor)]
         pub fn new(
+            oracle_address: AccountId,
             collateral_token_address: AccountId,
             emited_token_address: AccountId,
-            vault_feeder_address: AccountId,
+            interest_rate_stap_value_e12: i128,
+            maximum_minimum_collateral_coefficient_e6: u128,
+            collateral_step_value_e6: u128,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
                 instance.ownable.owner = instance.env().caller();
                 instance.collateral.collateral_token_address = collateral_token_address;
                 instance.emit.emited_token_address = emited_token_address;
-                instance.eat.vault_feeder_address = vault_feeder_address;
                 instance.current_interest_coefficient_e12 = E12;
-                instance.last_interest_coefficient_e12_update =
-                    instance.env().block_number() as u128;
+                instance.last_interest_coefficient_timestamp = instance.env().block_timestamp();
+                instance.oracle_address = oracle_address;
+                instance.interest_rate_stap_value_e12 = interest_rate_stap_value_e12;
+                instance.maximum_minimum_collateral_coefficient_e6 =
+                    maximum_minimum_collateral_coefficient_e6;
+                instance.collateral_step_value_e6 = collateral_step_value_e6;
+                instance.current_minimum_collateral_coefficient_e6 =
+                    maximum_minimum_collateral_coefficient_e6;
                 instance.next_id = 0;
             })
         }
@@ -558,29 +645,6 @@ pub mod vault {
             })
         }
     }
-    #[ink(event)]
-    pub struct FeederChanged {
-        #[ink(topic)]
-        old_feeder: Option<AccountId>,
-        #[ink(topic)]
-        new_feeder: Option<AccountId>,
-        #[ink(topic)]
-        caller: AccountId,
-    }
-    impl VEatingInternal for VaultContract {
-        fn _emit_feeder_changed_event(
-            &self,
-            _old_feeder: Option<AccountId>,
-            _new_feeder: Option<AccountId>,
-            _caller: AccountId,
-        ) {
-            self.env().emit_event(FeederChanged {
-                old_feeder: _old_feeder,
-                new_feeder: _new_feeder,
-                caller: _caller,
-            })
-        }
-    }
 
     #[cfg(test)]
     mod tests {
@@ -605,7 +669,7 @@ pub mod vault {
 
             assert_eq!(vault.get_collateral_token_address(), accounts.bob);
             assert_eq!(vault.get_emited_token_address(), accounts.charlie);
-            assert_eq!(vault.get_vault_feeder_address(), accounts.alice);
+            assert_eq!(vault.get_controller_address(), accounts.alice);
         }
     }
 }

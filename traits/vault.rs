@@ -3,7 +3,7 @@ use brush::{
         ownable::OwnableError, pausable::PausableError, psp34::PSP34Error, traits::ownable::*,
         traits::pausable::*,
     },
-    traits::Balance,
+    traits::{AccountId, Balance},
 };
 
 use crate::traits::collateralling::*;
@@ -15,10 +15,7 @@ use crate::traits::vault_eating::*;
 pub type VaultContractRef = dyn Vault + Ownable + Pausable + Collateralling + Emitting + VEating;
 
 #[brush::trait_definition]
-pub trait VaultContractCheck:
-    Vault + Ownable + Pausable + Collateralling + Emitting + VEating
-{
-}
+pub trait VaultContractCheck: Vault + Ownable + Pausable + Collateralling + Emitting {}
 
 #[brush::wrapper]
 pub type VaultRef = dyn Vault;
@@ -41,6 +38,15 @@ pub trait Vault {
     fn pay_back_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError>;
     #[ink(message)]
     fn buy_risky_vault(&mut self, vault_id: u128) -> Result<(), VaultError>;
+    #[ink(message)]
+    fn be_controlled(
+        &mut self,
+        interest_rate_step: i16,
+        collateral_step: u8,
+        stable_coin_interest_rate_step: i16,
+    ) -> Result<(), VaultError>;
+    #[ink(message)]
+    fn set_controller_address(&mut self, controller_address: AccountId) -> Result<(), VaultError>;
 }
 pub trait VaultInternal {
     fn _emit_deposit_event(&self, _vault_id: u128, _current_collateral: Balance);
@@ -51,7 +57,7 @@ pub trait VaultInternal {
     fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError>;
     fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError>;
     fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError>;
-    fn _update_cuurent_interest_coefficient_e12(&mut self) -> Result<u128, VaultError>;
+    fn _update_current_interest_coefficient_e12(&mut self) -> Result<u128, VaultError>;
     fn _get_current_interest_coefficient_e12(&self) -> Result<u128, VaultError>;
     fn _get_debt_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError>;
     fn _get_collateral_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError>;
@@ -59,11 +65,14 @@ pub trait VaultInternal {
         &self,
         vault_id: &u128,
     ) -> Result<Balance, VaultError>;
+    fn _add_collected_interests(&mut self, amount: Balance);
+    fn _sub_collected_interests(&mut self, amount: Balance);
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum VaultError {
+    VaultController,
     OwnerUnexists,
     DebtUnexists,
     CollateralUnexists,
@@ -80,7 +89,6 @@ pub enum VaultError {
     CollaterallingError(CollaterallingError),
     OwnableError(OwnableError),
     EmittingError(EmittingError),
-    VEatingError(VEatingError),
 }
 
 impl From<PSP34Error> for VaultError {
@@ -104,12 +112,6 @@ impl From<PausableError> for VaultError {
 impl From<EmittingError> for VaultError {
     fn from(error: EmittingError) -> Self {
         VaultError::EmittingError(error)
-    }
-}
-
-impl From<VEatingError> for VaultError {
-    fn from(error: VEatingError) -> Self {
-        VaultError::VEatingError(error)
     }
 }
 impl From<CollaterallingError> for VaultError {

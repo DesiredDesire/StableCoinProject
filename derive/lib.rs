@@ -22,7 +22,19 @@ declare_derive_storage_trait!(
     VEatingStorageField
 );
 declare_derive_storage_trait!(
-    derive_vault_feeding_storage,
-    VFeedingStorage,
-    VFeedingStorageField
+    derive_vault_controlling_storage,
+    VControllingStorage,
+    VControllingStorageField
+);
+
+declare_derive_storage_trait!(
+    derive_measuring_storage,
+    MeasuringStorage,
+    MeasuringStorageField
+);
+
+declare_derive_storage_trait!(
+    derive_oracling_storage,
+    OraclingStorage,
+    OraclingStorageField
 );

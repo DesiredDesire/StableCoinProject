@@ -1,5 +1,5 @@
 [package]
-name = "minter_contract"
+name = "measurer_contract"
 version = "0.0.1"
 authors = [""]
 edition = "2021"
@@ -20,7 +20,7 @@ stable_coin_project = { path = "../..", default-features = false }
 brush = {  tag = "v1.6.0", git = "https://github.com/Supercolony-net/openbrush-contracts", default-features = false, features = ["psp22"] }
 
 [lib]
-name = "minter_contract"
+name = "measurer_contract"
 path = "lib.rs"
 crate-type = [
     "cdylib",
