@@ -5,4 +5,5 @@ pub mod managing;
 pub mod measuring;
 pub mod minter;
 pub mod oracling;
+pub mod stable_controlling;
 pub mod vault_controlling;

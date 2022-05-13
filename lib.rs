@@ -7,6 +7,6 @@ pub use stable_coin_project_derive::CollaterallingStorage;
 pub use stable_coin_project_derive::EatingStorage;
 pub use stable_coin_project_derive::EmittingStorage;
 pub use stable_coin_project_derive::MinterStorage;
-
+pub use stable_coin_project_derive::SControllingStorage;
 pub use stable_coin_project_derive::VControllingStorage;
 pub use stable_coin_project_derive::VEatingStorage;

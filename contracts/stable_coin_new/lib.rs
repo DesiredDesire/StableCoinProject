@@ -58,7 +58,7 @@ pub mod stable_coin {
         pub interest_income: Balance,
         pub interest_debt: Balance,
 
-        pub system_address: AccountId,
+        pub controller_address: AccountId,
         pub treassury_address: AccountId,
     }
 
@@ -346,14 +346,34 @@ pub mod stable_coin {
             Ok(())
         }
 
+        #[ink(message)]
+        fn collect_interest_income(&mut self) -> Result<(), PSP22Error> {
+            let interest_income: Balance = self.interest_income;
+            self.interest_income = 0;
+            self._mint(self.treassury_address, interest_income)
+        }
+
+        #[ink(message)]
         fn update_current_denominator_e12(&mut self) -> u128 {
             self._update_current_denominator_e12()
         }
 
         #[ink(message)]
-        fn collect_interest_income(&mut self) -> Result<(), PSP22Error> {
-            let interest_income: Balance = self.interest_income;
-            self._mint(self.treassury_address, interest_income)
+        fn be_controlled(&mut self, interest_rate_e12: i128) -> Result<(), PSP22Error> {
+            if self.env().caller() != controller_address {
+                return Err(PSP22Error::InsufficientBalance); // TODO error name
+            }
+            self._update_current_denominator_e12();
+            self.current_interest_rate_e12 = interest_rate_e12;
+        }
+
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        fn set_controller_address(
+            &mut self,
+            new_controller_address: AccountId,
+        ) -> Result<(), PSP22Error> {
+            self.controller_address = new_controller_address;
         }
     }
 
@@ -570,7 +590,7 @@ pub mod stable_coin {
             symbol: Option<String>,
             decimal: u8,
             treassury_address: AccountId,
-            system_address: AccountId,
+            controller_address: AccountId,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut Self| {
                 // metadata
@@ -583,7 +603,7 @@ pub mod stable_coin {
                 instance._init_with_admin(caller);
                 // TaxedCoinData
                 instance.treassury_address = treassury_address;
-                instance.system_address = system_address;
+                instance.controller_address = controller_address;
                 instance.is_unrated.insert(&caller, &(true));
             })
         }
