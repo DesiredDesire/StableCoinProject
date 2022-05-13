@@ -365,7 +365,7 @@ pub mod stable_coin {
             }
             self._update_current_denominator_e12();
             self.current_interest_rate_e12 = interest_rate_e12;
-            Ok();
+            Ok(())
         }
 
         #[ink(message)]
@@ -373,8 +373,9 @@ pub mod stable_coin {
         fn set_controller_address(
             &mut self,
             new_controller_address: AccountId,
-        ) -> () {
+        ) -> Result<(), PSP22Error>  {
             self.controller_address = new_controller_address;
+            Ok(())
         }
     }
 
