@@ -18,7 +18,7 @@ pub trait VControllingInternal {
     fn _stability_measure_parameter_to_vault_parameters(
         &self,
         stability_measure: u8,
-    ) -> (i16, u8, i16);
+    ) -> (i16, u16, i16);
 }
 
 /// Enum of errors raised by our lending smart contract

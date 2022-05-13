@@ -49,18 +49,18 @@ pub mod vault {
         pub total_debt: Balance,
         pub next_id: u128,
 
+        pub current_interest_coefficient_e12: u128, // the current interest coefficient (acmulated interest)
         pub last_interest_coefficient_by_id_e12: Mapping<u128, u128>, // the last interest coefficient (acumulated interest) used for vault with id
         pub last_interest_coefficient_timestamp: Timestamp, // last block number when current_interest_coefficient_e12 was updated
 
-        pub current_interest_coefficient_e12: u128, // the current interest coefficient (acmulated interest)
-        pub current_interest_rate_e12: i128,
-        pub current_minimum_collateral_coefficient_e6: u128,
+        pub current_interest_rate_e12: i128, // interest_rate_step_value_e12 * current_interest_step( which is stored in vault_controller)
+        pub current_minimum_collateral_coefficient_e6: u128, // maximum_minimum_collaterall - collateral_step_value * current_collateral_step (shich is stored in vault_controller)
 
-        pub controller_address: AccountId,
+        pub controller_address: AccountId, // controlling_contract
 
-        //TODO TOTHINK
         pub interest_rate_stap_value_e12: i128,
         pub collateral_step_value_e6: u128,
+        //TODO TOTHINK
         pub interest_income: Balance, // amount of emitted token that can be mint, collecting debt interest
         pub interest_debt: Balance,
     }
@@ -78,7 +78,7 @@ pub mod vault {
         fn create_vault(&mut self) -> Result<(), VaultError> {
             let caller = self.env().caller();
             let next_id = self.next_id;
-            
+
             self._mint_to(caller, Id::U128(next_id))?;
             self.debt_by_id.insert(&next_id, &(0));
             self.collateral_by_id.insert(&next_id, &(0));
@@ -275,7 +275,7 @@ pub mod vault {
         fn be_controlled(
             &mut self,
             current_interest_rate_step: i16,
-            current_collateral_step: u8,
+            current_collateral_step: u16,
             current_stable_coin_interest_rate_step: i16,
         ) -> Result<(), VaultError> {
             let caller = self.env().caller();

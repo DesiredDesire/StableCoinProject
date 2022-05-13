@@ -25,14 +25,14 @@ impl<T: VControllingStorage> VControllingInternal for T {
     default fn _stability_measure_parameter_to_vault_parameters(
         &self,
         stability_measure: u8,
-    ) -> (i16, u8, i16) {
+    ) -> (i16, u16, i16) {
         match stability_measure {
             206..=255 => (
                 -((255 - 205) as i16),
                 50,
                 stability_measure as i16 - 205 + 55,
             ), //Turning negative rates for holders, consider adding positive rates
-            156..=205 => (0, stability_measure - 155, 0),
+            156..=205 => (0, (stability_measure - 155) as u16, 0),
             131..=155 => ((155 - stability_measure) as i16, 0, 0),
             125..=130 => (25, 0, 0),
             50..=124 => ((150 - stability_measure) as i16, 0, 0),
