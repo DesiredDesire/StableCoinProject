@@ -129,6 +129,12 @@ pub mod psp22_emitable {
                 instance._init_with_admin(caller);
             })
         }
+
+        #[ink(message)]
+        pub fn mint_any_caller(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
+            ink_env::debug_println!("MINT | START");
+            self._mint(account, amount)
+        }
     }
     // EVENT DEFINITIONS #[ink(event)]
     #[ink(event)]
