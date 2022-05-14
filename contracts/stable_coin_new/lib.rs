@@ -360,11 +360,12 @@ pub mod stable_coin {
 
         #[ink(message)]
         fn be_controlled(&mut self, interest_rate_e12: i128) -> Result<(), PSP22Error> {
-            if self.env().caller() != controller_address {
+            if self.env().caller() != self.controller_address {
                 return Err(PSP22Error::InsufficientBalance); // TODO error name
             }
             self._update_current_denominator_e12();
             self.current_interest_rate_e12 = interest_rate_e12;
+            Ok(())
         }
 
         #[ink(message)]
@@ -372,8 +373,9 @@ pub mod stable_coin {
         fn set_controller_address(
             &mut self,
             new_controller_address: AccountId,
-        ) -> Result<(), PSP22Error> {
+        ) -> Result<(), PSP22Error>  {
             self.controller_address = new_controller_address;
+            Ok(())
         }
     }
 
