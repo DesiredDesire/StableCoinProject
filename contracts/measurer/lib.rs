@@ -26,9 +26,10 @@ pub mod lending {
     impl MeasurerContract {
         /// constructor with name and symbol
         #[ink(constructor)]
-        pub fn new(oracle_address: AccountId) -> Self {
+        pub fn new(oracle_address: AccountId, owner: AccountId) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut MeasurerContract| {
                 instance.measure.oracle_address = oracle_address;
+                instance._init_with_owner(owner);
             })
         }
     }

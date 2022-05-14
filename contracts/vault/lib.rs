@@ -531,9 +531,9 @@ pub mod vault {
             interest_rate_stap_value_e12: i128,
             maximum_minimum_collateral_coefficient_e6: u128,
             collateral_step_value_e6: u128,
+            owner: AccountId,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
-                instance.ownable.owner = instance.env().caller();
                 instance.collateral.collateral_token_address = collateral_token_address;
                 instance.emit.emited_token_address = emited_token_address;
                 instance.current_interest_coefficient_e12 = E12;
@@ -546,6 +546,7 @@ pub mod vault {
                 instance.current_minimum_collateral_coefficient_e6 =
                     maximum_minimum_collateral_coefficient_e6;
                 instance.next_id = 0;
+                instance._init_with_owner(owner);
             })
         }
         #[ink(message)]

@@ -373,7 +373,7 @@ pub mod stable_coin {
         fn set_controller_address(
             &mut self,
             new_controller_address: AccountId,
-        ) -> Result<(), PSP22Error>  {
+        ) -> Result<(), PSP22Error> {
             self.controller_address = new_controller_address;
             Ok(())
         }
@@ -593,6 +593,7 @@ pub mod stable_coin {
             decimal: u8,
             treassury_address: AccountId,
             controller_address: AccountId,
+            owner: AccountId,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut Self| {
                 // metadata
@@ -600,13 +601,11 @@ pub mod stable_coin {
                 instance.metadata.symbol = symbol;
                 instance.metadata.decimals = decimal;
                 // ownable
-                let caller = Self::env().caller();
-                instance._init_with_owner(caller);
-                instance._init_with_admin(caller);
+                instance._init_with_owner(owner);
+                instance._init_with_admin(owner);
                 // TaxedCoinData
                 instance.treassury_address = treassury_address;
                 instance.controller_address = controller_address;
-                instance.is_unrated.insert(&caller, &(true));
             })
         }
 

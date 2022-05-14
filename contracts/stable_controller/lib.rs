@@ -25,10 +25,15 @@ pub mod lending {
     impl SControllerContract {
         /// constructor with name and symbol
         #[ink(constructor)]
-        pub fn new(measurer_address: AccountId, stable_address: AccountId) -> Self {
+        pub fn new(
+            measurer_address: AccountId,
+            stable_address: AccountId,
+            owner: AccountId,
+        ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut SControllerContract| {
                 instance.control.measurer_address = measurer_address;
                 instance.control.stable_address = stable_address;
+                instance._init_with_owner(owner);
             })
         }
     }
