@@ -4,8 +4,10 @@
 #[brush::contract]
 pub mod vault {
     //TODO withdraw interest_income payback interest debt;
+    use brush::contracts::psp22::*;
     use brush::contracts::psp34::PSP34Internal;
     use brush::{contracts::ownable::*, contracts::pausable::*, contracts::psp34::*, modifiers};
+    use ink_env::CallFlags;
     use ink_lang::codegen::EmitEvent;
     use ink_lang::codegen::Env;
     use ink_prelude::vec::Vec;
@@ -103,7 +105,7 @@ pub mod vault {
             if self._get_debt_by_id(&vault_id)? != 0 {
                 return Err(VaultError::HasDebt);
             }
-            if self._get_collateral_by_id(&vault_id)? != 0 {
+            if self._get_collateral_by_id(&vault_id) != 0 {
                 return Err(VaultError::NotEmpty);
             }
             self._burn_from(vault_owner, Id::U128(vault_id))?;
@@ -122,8 +124,8 @@ pub mod vault {
                 return Err(VaultError::VaultOwnership);
             }
 
-            // transfer in and increase collateral
-            let collateral = self._get_collateral_by_id(&vault_id)?;
+            //transfer in and increase collateral
+            let collateral = self._get_collateral_by_id(&vault_id);
             self._transfer_collateral_in(vault_owner, amount)?;
             self.collateral_by_id
                 .insert(&vault_id, &(collateral + amount));
@@ -146,7 +148,7 @@ pub mod vault {
             }
 
             // check if there is enought collateral to withdraw
-            let vault_collateral = self._get_collateral_by_id(&vault_id)?;
+            let vault_collateral = self._get_collateral_by_id(&vault_id);
             if amount > vault_collateral {
                 return Err(VaultError::CollateralBelowMinimum);
             }
@@ -328,7 +330,7 @@ pub mod vault {
         // returns cault collateral and debt
         fn get_vault_details(&self, vault_id: u128) -> Result<(Balance, Balance), VaultError> {
             Ok((
-                self._get_collateral_by_id(&vault_id)?,
+                self._get_collateral_by_id(&vault_id),
                 self._get_debt_by_id(&vault_id)?
                     * self._get_last_interest_coefficient_by_id_e12(&vault_id)?
                     / self._get_current_interest_coefficient_e12()?,
@@ -371,7 +373,7 @@ pub mod vault {
         }
 
         fn _emit_withdraw_event(&self, _vault_id: u128, _current_collateral: Balance) {
-            self.env().emit_event(Deposit {
+            self.env().emit_event(Withdraw {
                 vault_id: _vault_id,
                 current_collateral: _current_collateral,
             });
@@ -399,8 +401,8 @@ pub mod vault {
         }
 
         // returns value of vaults collateral
-        fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError> {
-            let collateral = self._get_collateral_by_id(&value_id)?;
+        fn _vault_collateral_value_e6(&self, vault_id: u128) -> Result<Balance, VaultError> {
+            let collateral = self._get_collateral_by_id(&vault_id);
             self._collateral_value_e6(collateral)
         }
 
@@ -480,15 +482,8 @@ pub mod vault {
         }
 
         // returns value from mapping
-        fn _get_collateral_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError> {
-            match self.collateral_by_id.get(&vault_id) {
-                Some(v) => {
-                    return Ok(v);
-                }
-                None => {
-                    return Err(VaultError::CollateralUnexists);
-                }
-            }
+        fn _get_collateral_by_id(&self, vault_id: &u128) -> Balance {
+            self.collateral_by_id.get(&vault_id).unwrap_or(0)
         }
 
         // returns value from mapping

@@ -27,6 +27,19 @@ pub trait Collateralling {
     fn get_collateral_token_address(&self) -> AccountId;
 }
 
+pub trait CollaterallingInternal {
+    fn _transfer_collateral_in(
+        &mut self,
+        from: AccountId,
+        amount: Balance,
+    ) -> Result<(), PSP22Error>;
+    fn _transfer_collateral_out(
+        &mut self,
+        to: AccountId,
+        amount: Balance,
+    ) -> Result<(), PSP22Error>;
+}
+
 /// Enum of errors raised by our lending smart contract
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]

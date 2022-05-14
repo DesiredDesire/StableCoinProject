@@ -39,6 +39,22 @@ describe.only('Vault', () => {
       await expect(vaultContract.query.ownerOf({ u128: 0 })).to.have.output(users[0].address);
     });
 
+    it.only('not an owner creates a vault and makes deposit', async () => {
+      const depositedAmount = '1000000000000';
+      await expect(fromSigner(vaultContract, users[0].address).tx.createVault()).to.eventually.be.fulfilled;
+      await expect(vaultContract.query.ownerOf({ u128: 0 })).to.have.output(users[0].address);
+      await expect(fromSigner(collateralTokenContract, users[0].address).tx.mintAnyCaller(users[0].address, depositedAmount)).to.eventually
+        .be.fulfilled;
+      await expect(fromSigner(collateralTokenContract, users[0].address).tx.approve(vaultContract.address, depositedAmount)).to.eventually
+        .be.fulfilled;
+      console.log('before_error');
+      await fromSigner(vaultContract, users[0].address).tx.depositCollateral(0, depositedAmount);
+      console.log('after_error');
+      await expect(fromSigner(collateralTokenContract, users[0].address).query.balanceOf(vaultContract.address)).to.have.output(
+        depositedAmount
+      );
+    });
+
     it('creates a vault and destroys it', async () => {
       await fromSigner(vaultContract, users[0].address).tx.createVault();
       const id = vaultContract.abi.registry.createType('u128', 0);

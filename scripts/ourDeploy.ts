@@ -1,4 +1,3 @@
-import { AccountId } from '@polkadot/types/interfaces';
 import { Signer } from 'redspot/types/provider';
 import { setupOracle, setupEmmitedToken, setupCollateralMock, setupMeasurer, setupVault, setupVaultController } from './ourHelpers';
 import { consts } from './constants';

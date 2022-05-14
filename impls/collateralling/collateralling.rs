@@ -1,5 +1,6 @@
 pub use super::data::*;
 pub use crate::traits::collateralling::*;
+use ink_env::CallFlags;
 use ink_prelude::vec::Vec;
 
 use brush::{
@@ -37,35 +38,26 @@ impl<T: CollaterallingStorage + OwnableStorage> Collateralling for T {
     }
 }
 
-pub trait CollaterallingInternal {
-    fn _transfer_collateral_in(
-        &mut self,
-        from: AccountId,
-        amount: Balance,
-    ) -> Result<(), CollaterallingError>;
-    fn _transfer_collateral_out(
-        &mut self,
-        to: AccountId,
-        amount: Balance,
-    ) -> Result<(), CollaterallingError>;
-}
-
 impl<T: CollaterallingStorage> CollaterallingInternal for T {
     default fn _transfer_collateral_in(
         &mut self,
         from: AccountId,
         amount: Balance,
-    ) -> Result<(), CollaterallingError> {
+    ) -> Result<(), PSP22Error> {
         let collateral_token_address: AccountId =
             CollaterallingStorage::get(self).collateral_token_address;
         CollaterallingStorage::get_mut(self).collateral_amount += amount;
-        PSP22Ref::transfer_from(
+
+        PSP22Ref::transfer_from_builder(
             &collateral_token_address,
             from,
             Self::env().account_id(),
             amount,
             Vec::<u8>::new(),
-        )?;
+        )
+        .call_flags(CallFlags::default().set_allow_reentry(true))
+        .fire()
+        .unwrap()?;
         Ok(())
     }
 
@@ -73,7 +65,7 @@ impl<T: CollaterallingStorage> CollaterallingInternal for T {
         &mut self,
         to: AccountId,
         amount: Balance,
-    ) -> Result<(), CollaterallingError> {
+    ) -> Result<(), PSP22Error> {
         let collateral_token_address: AccountId =
             CollaterallingStorage::get(self).collateral_token_address;
         PSP22Ref::transfer(&collateral_token_address, to, amount, Vec::<u8>::new())?;
