@@ -19,6 +19,9 @@ pub mod vault {
     // const U128MAX: u128 = 340282366920938463463374607431768211455;
     const E12: u128 = 10 ^ 12;
 
+    const COLLATERAL_DECIMALS: u128 = 10 ^ 12;
+    const STABLE_DECIMALS: u128 = 10 ^ 6;
+
     #[ink(storage)]
     #[derive(
         Default,
@@ -385,16 +388,16 @@ pub mod vault {
             Ok(debt_ceiling)
         }
 
-        // collateral amount -> collateral value
-        fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError> {
-            let collateral_price_e6 = OraclingRef::get_azero_usd_price_e6(&self.oracle_address);
-            Ok(collateral * collateral_price_e6)
-        }
-
         // returns value of vaults collateral
         fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError> {
             let collateral = self._get_collateral_by_id(&value_id)?;
             self._collateral_value_e6(collateral)
+        }
+
+        // collateral amount -> collateral value
+        fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError> {
+            let collateral_price_e6 = OraclingRef::get_azero_usd_price_e6(&self.oracle_address);
+            Ok(collateral * STABLE_DECIMALS / COLLATERAL_DECIMALS * collateral_price_e6)
         }
 
         // updates current interest coefficient, updates vaults debt and increments stored interest
