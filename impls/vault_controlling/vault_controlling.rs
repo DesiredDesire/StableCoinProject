@@ -2,6 +2,7 @@ pub use super::data::*;
 pub use crate::traits::measuring::*;
 pub use crate::traits::vault::*;
 pub use crate::traits::vault_controlling::*;
+use brush::traits::AccountId;
 
 impl<T: VControllingStorage> VControlling for T {
     default fn control_vault(&mut self) -> Result<(), VControllingError> {
@@ -19,6 +20,10 @@ impl<T: VControllingStorage> VControlling for T {
         )?;
 
         Ok(())
+    }
+
+    default fn get_vault_address(&self) -> AccountId {
+        VControllingStorage::get(self).vault_address
     }
 }
 

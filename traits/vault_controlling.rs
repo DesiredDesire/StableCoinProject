@@ -1,6 +1,6 @@
-use super::vault::*;
-
 use super::measuring::*;
+use super::vault::*;
+use brush::traits::AccountId;
 
 #[brush::wrapper]
 pub type VControllingContractRef = dyn VControlling;
@@ -12,6 +12,8 @@ pub type VControllingRef = dyn VControlling;
 pub trait VControlling {
     #[ink(message)]
     fn control_vault(&mut self) -> Result<(), VControllingError>;
+    #[ink(message)]
+    fn get_vault_address(&self) -> AccountId;
 }
 
 pub trait VControllingInternal {

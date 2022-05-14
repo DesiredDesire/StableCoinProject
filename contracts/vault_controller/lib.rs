@@ -25,10 +25,15 @@ pub mod lending {
     impl VControllerContract {
         /// constructor with name and symbol
         #[ink(constructor)]
-        pub fn new(measurer_address: AccountId, vault_address: AccountId) -> Self {
+        pub fn new(
+            measurer_address: AccountId,
+            vault_address: AccountId,
+            owner: AccountId,
+        ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VControllerContract| {
                 instance.control.measurer_address = measurer_address;
                 instance.control.vault_address = vault_address;
+                instance._init_with_owner(owner);
             })
         }
     }

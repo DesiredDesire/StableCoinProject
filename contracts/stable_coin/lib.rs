@@ -327,16 +327,20 @@ pub mod stable_coin {
 
     impl StableCoinContract {
         #[ink(constructor)]
-        pub fn new(name: Option<String>, symbol: Option<String>, decimal: u8) -> Self {
+        pub fn new(
+            name: Option<String>,
+            symbol: Option<String>,
+            decimal: u8,
+            owner: AccountId,
+        ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut Self| {
                 // metadata
                 instance.metadata.name = name;
                 instance.metadata.symbol = symbol;
                 instance.metadata.decimals = decimal;
                 // ownable
-                let caller = Self::env().caller();
-                instance._init_with_owner(caller);
-                instance._init_with_admin(caller);
+                instance._init_with_owner(owner);
+                instance._init_with_admin(owner);
                 // TaxedCoinData
                 instance.tax_interest_update_period = 3600;
                 instance.tax_interest_applied = 0;
@@ -344,8 +348,8 @@ pub mod stable_coin {
                 instance.tax_last_block = Self::env().block_number() as u128;
                 instance.tax_denom_e12 = E12;
 
-                instance.treassury = caller;
-                instance.is_untaxed.insert(&caller, &(true));
+                instance.treassury = owner;
+                instance.is_untaxed.insert(&owner, &(true));
             })
         }
 

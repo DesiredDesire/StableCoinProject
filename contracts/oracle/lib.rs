@@ -23,10 +23,11 @@ pub mod lending {
     impl OracleContract {
         /// constructor with name and symbol
         #[ink(constructor)]
-        pub fn new() -> Self {
+        pub fn new(owner: AccountId) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut OracleContract| {
                 instance.oracle.azero_usd_price_e6 = 0;
                 instance.oracle.azero_ausd_price_e6 = 0;
+                instance._init_with_owner(owner);
             })
         }
 

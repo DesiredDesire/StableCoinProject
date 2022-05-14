@@ -2,7 +2,10 @@ pub use super::data::*;
 pub use crate::traits::measuring::*;
 pub use crate::traits::oracling::*;
 pub use crate::traits::stable_coin::*;
+use brush::contracts::ownable::*;
 use brush::contracts::pausable::*;
+use brush::modifiers;
+use brush::traits::AccountId;
 use brush::traits::Timestamp;
 
 const E6: u128 = 1000000;
@@ -11,7 +14,7 @@ const SECOND: Timestamp = 1;
 const MINUTE: Timestamp = 60 * SECOND;
 const HOUR: Timestamp = 60 * MINUTE;
 
-impl<T: MeasuringStorage + PausableStorage> Measuring for T {
+impl<T: MeasuringStorage + PausableStorage + OwnableStorage> Measuring for T {
     #[brush::modifiers(when_not_paused)]
     default fn update_stability_measure_parameter(&mut self) -> Result<u8, MeasuringError> {
         let oracle_address = MeasuringStorage::get(self).oracle_address;
@@ -41,6 +44,16 @@ impl<T: MeasuringStorage + PausableStorage> Measuring for T {
 
     default fn get_stability_measure_parameter(&self) -> u8 {
         MeasuringStorage::get(self).stability_measure
+    }
+
+    #[modifiers(only_owner)]
+    fn set_oracle_address(&mut self, new_oracle_address: AccountId) -> Result<(), MeasuringError> {
+        MeasuringStorage::get_mut(self).oracle_address = new_oracle_address;
+        Ok(())
+    }
+
+    fn get_oracle_address(&self) -> AccountId {
+        MeasuringStorage::get(self).oracle_address
     }
 }
 

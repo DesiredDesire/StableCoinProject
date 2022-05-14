@@ -19,6 +19,9 @@ pub mod vault {
     // const U128MAX: u128 = 340282366920938463463374607431768211455;
     const E12: u128 = 10 ^ 12;
 
+    const COLLATERAL_DECIMALS: u128 = 10 ^ 12;
+    const STABLE_DECIMALS: u128 = 10 ^ 6;
+
     #[ink(storage)]
     #[derive(
         Default,
@@ -301,6 +304,16 @@ pub mod vault {
             self.controller_address = controller_address;
             Ok(())
         }
+
+        #[ink(message)]
+        fn get_controller_address(&self) -> AccountId {
+            self.controller_address
+        }
+
+        #[ink(message)]
+        fn get_oracle_address(&self) -> AccountId {
+            self.oracle_address
+        }
     }
     pub trait VaultView {
         fn get_total_debt(&self) -> Balance;
@@ -385,16 +398,16 @@ pub mod vault {
             Ok(debt_ceiling)
         }
 
-        // collateral amount -> collateral value
-        fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError> {
-            let collateral_price_e6 = OraclingRef::get_azero_usd_price_e6(&self.oracle_address);
-            Ok(collateral * collateral_price_e6)
-        }
-
         // returns value of vaults collateral
         fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError> {
             let collateral = self._get_collateral_by_id(&value_id)?;
             self._collateral_value_e6(collateral)
+        }
+
+        // collateral amount -> collateral value
+        fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError> {
+            let collateral_price_e6 = OraclingRef::get_azero_usd_price_e6(&self.oracle_address);
+            Ok(collateral * STABLE_DECIMALS / COLLATERAL_DECIMALS * collateral_price_e6)
         }
 
         // updates current interest coefficient, updates vaults debt and increments stored interest
@@ -531,9 +544,9 @@ pub mod vault {
             interest_rate_stap_value_e12: i128,
             maximum_minimum_collateral_coefficient_e6: u128,
             collateral_step_value_e6: u128,
+            owner: AccountId,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
-                instance.ownable.owner = instance.env().caller();
                 instance.collateral.collateral_token_address = collateral_token_address;
                 instance.emit.emited_token_address = emited_token_address;
                 instance.current_interest_coefficient_e12 = E12;
@@ -546,6 +559,7 @@ pub mod vault {
                 instance.current_minimum_collateral_coefficient_e6 =
                     maximum_minimum_collateral_coefficient_e6;
                 instance.next_id = 0;
+                instance._init_with_owner(owner);
             })
         }
         #[ink(message)]

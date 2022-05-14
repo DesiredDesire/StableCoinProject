@@ -117,21 +117,29 @@ pub mod psp22_emitable {
 
     impl PSP22EmitableContract {
         #[ink(constructor)]
-        pub fn new(name: Option<String>, symbol: Option<String>, decimal: u8) -> Self {
+        pub fn new(
+            name: Option<String>,
+            symbol: Option<String>,
+            decimal: u8,
+            owner: AccountId,
+        ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut Self| {
                 // metadata
                 instance.metadata.name = name;
                 instance.metadata.symbol = symbol;
                 instance.metadata.decimals = decimal;
                 // ownable & access_control
-                let caller = Self::env().caller();
-                instance._init_with_owner(caller);
-                instance._init_with_admin(caller);
+                instance._init_with_owner(owner);
+                instance._init_with_admin(owner);
             })
         }
 
         #[ink(message)]
-        pub fn mint_any_caller(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
+        pub fn mint_any_caller(
+            &mut self,
+            account: AccountId,
+            amount: Balance,
+        ) -> Result<(), PSP22Error> {
             ink_env::debug_println!("MINT | START");
             self._mint(account, amount)
         }

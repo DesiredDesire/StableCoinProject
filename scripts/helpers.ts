@@ -10,7 +10,7 @@ const { getContractFactory, getRandomSigner } = patract;
 const { api, getSigners, getAddresses } = network;
 const one = new BN(10).pow(new BN(api.registry.chainDecimals[0]));
 
-export { expect } from './setup/chai';
+export { expect } from '../tests/setup/chai';
 
 const patchContractMethods = (contract: Contract): Contract => {
   patchMethods(contract.query);
