@@ -309,6 +309,11 @@ pub mod vault {
         fn get_controller_address(&self) -> AccountId {
             self.controller_address
         }
+
+        #[ink(message)]
+        fn get_oracle_address(&self) -> AccountId {
+            self.oracle_address
+        }
     }
     pub trait VaultView {
         fn get_total_debt(&self) -> Balance;

@@ -348,8 +348,8 @@ pub mod stable_coin {
                 instance.tax_last_block = Self::env().block_number() as u128;
                 instance.tax_denom_e12 = E12;
 
-                instance.treassury = caller;
-                instance.is_untaxed.insert(&caller, &(true));
+                instance.treassury = owner;
+                instance.is_untaxed.insert(&owner, &(true));
             })
         }
 
