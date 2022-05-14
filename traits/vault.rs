@@ -47,6 +47,8 @@ pub trait Vault {
     ) -> Result<(), VaultError>;
     #[ink(message)]
     fn set_controller_address(&mut self, controller_address: AccountId) -> Result<(), VaultError>;
+    #[ink(message)]
+    fn get_controller_address(&self) -> AccountId;
 }
 pub trait VaultInternal {
     fn _emit_deposit_event(&self, _vault_id: u128, _current_collateral: Balance);

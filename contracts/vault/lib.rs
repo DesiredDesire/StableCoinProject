@@ -304,6 +304,11 @@ pub mod vault {
             self.controller_address = controller_address;
             Ok(())
         }
+
+        #[ink(message)]
+        fn get_controller_address(&self) -> AccountId {
+            self.controller_address
+        }
     }
     pub trait VaultView {
         fn get_total_debt(&self) -> Balance;
