@@ -50,7 +50,7 @@
     "localNode": "./substrate-contracts-node --dev -lerror,runtime::contracts=debug",
     "build": "npx redspot compile",
     "compileSingle": "npx ts-node ./compileSingleContract.ts",
-    "test": "npx redspot test --no-compile 2>&1 | awk '!/Unable to find handler for subscription/ && !/has multiple versions, ensure that there is only one installed/ && !/Either remove and explicitly install matching versions or dedupe using your package manager/ && !/The following conflicting packages were found/ && !/cjs/' | awk 'NF'",
+    "test": "npx ts-node ./runTestsWithoutWarnings.ts",
     "explorer": "npx redspot explorer",
     "deploy": "npx redspot run scripts/deploy.ts --no-compile"
   },
