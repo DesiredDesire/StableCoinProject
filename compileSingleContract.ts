@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import fs from 'fs-extra';
 import path from 'path';
 import glob from 'glob';
@@ -23,16 +23,25 @@ const getContractsFolderPath = (contractsRootPath: string, contractName: string)
 };
 
 const compileContract = async (contractPath: string) => {
-  const COMPILE_CONTRACT_COMMAND = 'cargo +nightly contract build';
+  const command = 'cargo';
+  const args = ['+nightly', 'contract', 'build'];
   console.log(`compiling contract...`);
-  const promiseWithChild = execPromise(COMPILE_CONTRACT_COMMAND, { cwd: contractPath });
-  promiseWithChild.child.stdout?.on('data', (data) => {
-    console.log(data);
+
+  return new Promise((resolve, reject) => {
+    const process = spawn(command, args, { cwd: contractPath, stdio: 'inherit' });
+    process.stdout?.on('data', (data) => {
+      console.log(data);
+    });
+    process.stderr?.on('data', (data) => {
+      console.log(data);
+    });
+    process.on('exit', function (code) {
+      resolve(code);
+    });
+    process.on('error', function (err) {
+      reject(err);
+    });
   });
-  promiseWithChild.child.stderr?.on('data', (data) => {
-    console.log(data);
-  });
-  await promiseWithChild;
 };
 
 const copyArtifacts = async (contractPath: string, contractName: string) => {
