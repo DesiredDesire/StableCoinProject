@@ -27,6 +27,7 @@ impl<T: EmittingStorage> EmittingInternal for T {
         to: AccountId,
         amount: Balance,
     ) -> Result<(), EmittingError> {
+        ink_env::debug_println!("amint mount: {}", amount);
         let emited_token_address = EmittingStorage::get(self).emited_token_address;
         EmittingStorage::get_mut(self).emited_amount += amount;
         PSP22MintableRef::mint(&emited_token_address, to, amount)?;
