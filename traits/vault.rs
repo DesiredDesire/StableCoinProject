@@ -1,7 +1,7 @@
 use brush::{
     contracts::{
-        ownable::OwnableError, pausable::PausableError, psp34::PSP34Error, traits::ownable::*,
-        traits::pausable::*,
+        ownable::OwnableError, pausable::PausableError, psp22::PSP22Error, psp34::PSP34Error,
+        traits::ownable::*, traits::pausable::*,
     },
     traits::{AccountId, Balance},
 };
@@ -64,7 +64,7 @@ pub trait VaultInternal {
     fn _update_current_interest_coefficient_e12(&mut self) -> Result<u128, VaultError>;
     fn _get_current_interest_coefficient_e12(&self) -> Result<u128, VaultError>;
     fn _get_debt_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError>;
-    fn _get_collateral_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError>;
+    fn _get_collateral_by_id(&self, vault_id: &u128) -> Balance;
     fn _get_last_interest_coefficient_by_id_e12(
         &self,
         vault_id: &u128,
@@ -80,19 +80,23 @@ pub enum VaultError {
     OwnerUnexists,
     DebtUnexists,
     CollateralUnexists,
-    Unexists,
-    Exists,
     HasDebt,
     NotEmpty,
     VaultOwnership,
     CollateralBelowMinimum,
     CollateralAboveMinimum,
-    DepositError,
+    PSP22Error(PSP22Error),
     PSP34Error(PSP34Error),
     PausableError(PausableError),
     CollaterallingError(CollaterallingError),
     OwnableError(OwnableError),
     EmittingError(EmittingError),
+}
+
+impl From<PSP22Error> for VaultError {
+    fn from(error: PSP22Error) -> Self {
+        VaultError::PSP22Error(error)
+    }
 }
 
 impl From<PSP34Error> for VaultError {
