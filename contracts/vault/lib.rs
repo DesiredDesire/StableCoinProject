@@ -452,9 +452,9 @@ pub mod vault {
             );
             // update
             let mut updated_debt =
-                debt * current_interest_coefficient_e12 / last_interest_coefficient_e12 + 1; // round up
-            if updated_debt == 1 {
-                updated_debt = 0;
+                debt * current_interest_coefficient_e12 / last_interest_coefficient_e12;
+            if updated_debt != 0 {
+                updated_debt += 1; // round up
             }
             ink_env::debug_println!("updated_debt: {}", updated_debt);
             if updated_debt > debt {
