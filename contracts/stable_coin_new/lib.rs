@@ -125,7 +125,6 @@ pub mod stable_coin {
         #[ink(message)]
         #[modifiers(only_role(MINTER))]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            ink_env::debug_println!("MINT | START");
             self._mint(account, amount)
         }
     }

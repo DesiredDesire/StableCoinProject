@@ -100,7 +100,6 @@ pub mod psp22_emitable {
         #[ink(message)]
         #[modifiers(only_role(MINTER))]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            ink_env::debug_println!("MINT | START");
             self._mint(account, amount)
         }
     }
@@ -140,7 +139,6 @@ pub mod psp22_emitable {
             account: AccountId,
             amount: Balance,
         ) -> Result<(), PSP22Error> {
-            ink_env::debug_println!("MINT | START");
             self._mint(account, amount)
         }
     }

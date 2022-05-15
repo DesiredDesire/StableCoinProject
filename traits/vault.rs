@@ -58,16 +58,16 @@ pub trait VaultView {
     #[ink(message)]
     fn get_oracle_address(&self) -> AccountId;
     #[ink(message)]
-    fn get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError>;
+    fn get_debt_ceiling(&self, vault_id: u128) -> Balance;
 }
 pub trait VaultInternal {
     fn _emit_deposit_event(&self, _vault_id: u128, _current_collateral: Balance);
     fn _emit_withdraw_event(&self, _vault_id: u128, _current_collateral: Balance);
     fn _emit_borrow_event(&self, _vault_id: u128, _current_debt: Balance);
     fn _emit_pay_back_event(&self, _vault_id: u128, _current_debt: Balance);
-    fn _get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError>;
-    fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError>;
-    fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError>;
+    fn _get_debt_ceiling(&self, vault_id: u128) -> Balance;
+    fn _collateral_value_e6(&self, collateral: Balance) -> u128;
+    fn _vault_collateral_value_e6(&self, value_id: u128) -> u128;
     fn _update_vault_debt(&mut self, vault_id: &u128) -> Balance;
     fn _update_current_interest_coefficient_e12(&mut self) -> u128;
     fn _get_current_interest_coefficient_e12(&self) -> u128;

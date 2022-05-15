@@ -49,13 +49,13 @@
   "scripts": {
     "localNode": "./substrate-contracts-node --dev -lerror,runtime::contracts=debug",
     "build": "npx redspot compile",
-    "compileSingle": "npx ts-node ./compileSingleContract.ts",
+    "cs": "npx ts-node ./compileSingleContract.ts",
     "test": "npx ts-node ./runTestsWithoutWarnings.ts",
     "explorer": "npx redspot explorer",
     "deploy": "npx redspot run scripts/deploy.ts --no-compile"
   },
   "scriptsDescription": {
-    "compileSingle": "example usage: npm run compileSingle -- flipper"
+    "cs": "example usage: npm run cs -- flipper"
   },
   "devDependencies": {
     "@types/fs-extra": "^9.0.13",

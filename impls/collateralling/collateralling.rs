@@ -66,12 +66,15 @@ impl<T: CollaterallingStorage> CollaterallingInternal for T {
         to: AccountId,
         amount: Balance,
     ) -> Result<(), PSP22Error> {
+        ink_env::debug_println!("collaterlling_start");
         let collateral_token_address: AccountId =
             CollaterallingStorage::get(self).collateral_token_address;
+        ink_env::debug_println!("collaterlling_transfer_build");
         PSP22Ref::transfer_builder(&collateral_token_address, to, amount, Vec::<u8>::new())
             .call_flags(CallFlags::default().set_allow_reentry(true))
             .fire()
             .unwrap()?;
+        ink_env::debug_println!("collaterlling_after_transfer_build");
         CollaterallingStorage::get_mut(self).collateral_amount -= amount;
         Ok(())
     }
