@@ -9,7 +9,7 @@ const { getSigners, api } = network;
 const E6: bigint = 1000000n;
 const STA_DEC: bigint = E6;
 const COL_DEC: bigint = E6 * E6;
-describe.only('Vault', () => {
+describe('Vault', () => {
   let users: Signer[];
   let owner: Signer;
   let oracleContract: Contract;
@@ -65,10 +65,10 @@ describe.only('Vault', () => {
     const MINTED_AMOUNT: bigint = BigInt('4313514311412321412');
     const AZERO_USD_PRICE: bigint = BigInt('1200000');
     beforeEach('create vault', async () => {
-      // await fromSigner(vaultContract, users[0].address).tx.createVault();
-      // await fromSigner(collateralTokenContract, users[0].address).tx.mintAnyCaller(users[0].address, MINTED_AMOUNT);
-      // await fromSigner(collateralTokenContract, users[0].address).tx.approve(vaultContract.address, MINTED_AMOUNT);
-      // await fromSigner(oracleContract, owner.address).tx.feedAzeroUsdPriceE6(AZERO_USD_PRICE);
+      await fromSigner(vaultContract, users[0].address).tx.createVault();
+      await fromSigner(collateralTokenContract, users[0].address).tx.mintAnyCaller(users[0].address, MINTED_AMOUNT);
+      await fromSigner(collateralTokenContract, users[0].address).tx.approve(vaultContract.address, MINTED_AMOUNT);
+      await fromSigner(oracleContract, owner.address).tx.feedAzeroUsdPriceE6(AZERO_USD_PRICE);
     });
 
     it('deposit works', async () => {
@@ -76,7 +76,6 @@ describe.only('Vault', () => {
       await fromSigner(vaultContract, users[0].address).tx.depositCollateral(0, depositAmount);
       await expect(collateralTokenContract.query.balanceOf(vaultContract.address)).to.have.output(depositAmount);
       const res = await vaultContract.query.getVaultDetails(0);
-      console.log(res);
       await expect(vaultContract.query.getVaultDetails(0)).to.have.output([depositAmount, 0]);
     });
     it('deposit fails if not enough balace', async () => {
@@ -94,11 +93,8 @@ describe.only('Vault', () => {
       const depositAmount = MINTED_AMOUNT;
       const withdrawAmount = MINTED_AMOUNT / 2n;
       const difference = depositAmount - withdrawAmount;
-      console.log('deposit');
       await fromSigner(vaultContract, users[0].address).tx.depositCollateral(0, depositAmount);
-      console.log('withdraw');
       await fromSigner(vaultContract, users[0].address).tx.withdrawCollateral(0, withdrawAmount);
-      console.log('vaultDetails');
       await expect(vaultContract.query.getVaultDetails(0)).to.have.output([difference, 0]);
     });
 
@@ -127,11 +123,11 @@ describe.only('Vault', () => {
     const AZERO_USD_PRICE: bigint = BigInt('1200000');
     const DEPOSITED_AMOUNT: bigint = BigInt('1000000000000');
     beforeEach('create vault and make deposit', async () => {
-      // await fromSigner(vaultContract, users[0].address).tx.createVault();
-      // await fromSigner(collateralTokenContract, users[0].address).tx.mintAnyCaller(users[0].address, MINTED_AMOUNT);
-      // await fromSigner(collateralTokenContract, users[0].address).tx.approve(vaultContract.address, MINTED_AMOUNT);
-      // await fromSigner(oracleContract, owner.address).tx.feedAzeroUsdPriceE6(AZERO_USD_PRICE);
-      // await fromSigner(vaultContract, users[0].address).tx.depositCollateral(0, DEPOSITED_AMOUNT);
+      await fromSigner(vaultContract, users[0].address).tx.createVault();
+      await fromSigner(collateralTokenContract, users[0].address).tx.mintAnyCaller(users[0].address, MINTED_AMOUNT);
+      await fromSigner(collateralTokenContract, users[0].address).tx.approve(vaultContract.address, MINTED_AMOUNT);
+      await fromSigner(oracleContract, owner.address).tx.feedAzeroUsdPriceE6(AZERO_USD_PRICE);
+      await fromSigner(vaultContract, users[0].address).tx.depositCollateral(0, DEPOSITED_AMOUNT);
     });
 
     it('get debt ceiling returns correct value', async () => {
@@ -141,23 +137,14 @@ describe.only('Vault', () => {
 
     it('borrow should work for debt ceiling', async () => {
       const debtCeiling = await BigInt((await vaultContract.query.getDebtCeiling(0)).output?.toString() as string);
-      console.log(debtCeiling);
       await expect(fromSigner(vaultContract, users[0].address).tx.borrowToken(0, debtCeiling)).to.eventually.be.fulfilled;
       await expect(emittedTokenContract.query.balanceOf(users[0].address)).to.have.output(debtCeiling);
       await expect(vaultContract.query.getVaultDetails(0)).to.have.output([DEPOSITED_AMOUNT, debtCeiling]);
     });
 
-    it.only('borrow should work for debt ceiling - 1', async () => {
-      await fromSigner(vaultContract, users[0].address).tx.createVault();
-      await fromSigner(collateralTokenContract, users[0].address).tx.mintAnyCaller(users[0].address, MINTED_AMOUNT);
-      await fromSigner(collateralTokenContract, users[0].address).tx.approve(vaultContract.address, MINTED_AMOUNT);
-      await fromSigner(oracleContract, owner.address).tx.feedAzeroUsdPriceE6(AZERO_USD_PRICE);
-      await fromSigner(vaultContract, users[0].address).tx.depositCollateral(0, DEPOSITED_AMOUNT);
+    it('borrow should work for debt ceiling - 1', async () => {
       const debtCeiling = await BigInt((await vaultContract.query.getDebtCeiling(0)).output?.toString() as string);
-      console.log(debtCeiling);
-      console.log((await vaultContract.query.getVaultDetails(0)).output?.toString());
       await expect(fromSigner(vaultContract, users[0].address).tx.borrowToken(0, debtCeiling - 1n)).to.eventually.be.fulfilled;
-      console.log((await vaultContract.query.getVaultDetails(0)).output?.toString());
       await expect(emittedTokenContract.query.balanceOf(users[0].address)).to.have.output(debtCeiling - 1n);
       await expect(vaultContract.query.getVaultDetails(0)).to.have.output([DEPOSITED_AMOUNT, debtCeiling - 1n]);
     });
