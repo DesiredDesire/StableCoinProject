@@ -68,7 +68,10 @@ impl<T: CollaterallingStorage> CollaterallingInternal for T {
     ) -> Result<(), PSP22Error> {
         let collateral_token_address: AccountId =
             CollaterallingStorage::get(self).collateral_token_address;
-        PSP22Ref::transfer(&collateral_token_address, to, amount, Vec::<u8>::new())?;
+        PSP22Ref::transfer_builder(&collateral_token_address, to, amount, Vec::<u8>::new())
+            .call_flags(CallFlags::default().set_allow_reentry(true))
+            .fire()
+            .unwrap()?;
         CollaterallingStorage::get_mut(self).collateral_amount -= amount;
         Ok(())
     }

@@ -31,8 +31,6 @@ pub trait Vault {
     #[ink(message)]
     fn withdraw_collateral(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError>;
     #[ink(message)]
-    fn get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError>;
-    #[ink(message)]
     fn borrow_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError>;
     #[ink(message)]
     fn pay_back_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError>;
@@ -47,10 +45,20 @@ pub trait Vault {
     ) -> Result<(), VaultError>;
     #[ink(message)]
     fn set_controller_address(&mut self, controller_address: AccountId) -> Result<(), VaultError>;
+}
+
+#[brush::trait_definition]
+pub trait VaultView {
+    #[ink(message)]
+    fn get_total_debt(&self) -> Balance;
+    #[ink(message)]
+    fn get_vault_details(&self, vault_id: u128) -> (Balance, Balance);
     #[ink(message)]
     fn get_controller_address(&self) -> AccountId;
     #[ink(message)]
     fn get_oracle_address(&self) -> AccountId;
+    #[ink(message)]
+    fn get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError>;
 }
 pub trait VaultInternal {
     fn _emit_deposit_event(&self, _vault_id: u128, _current_collateral: Balance);
@@ -60,15 +68,12 @@ pub trait VaultInternal {
     fn _get_debt_ceiling(&self, vault_id: u128) -> Result<Balance, VaultError>;
     fn _collateral_value_e6(&self, collateral: Balance) -> Result<Balance, VaultError>;
     fn _vault_collateral_value_e6(&self, value_id: u128) -> Result<Balance, VaultError>;
-    fn _update_vault_debt(&mut self, vault_id: &u128) -> Result<Balance, VaultError>;
-    fn _update_current_interest_coefficient_e12(&mut self) -> Result<u128, VaultError>;
-    fn _get_current_interest_coefficient_e12(&self) -> Result<u128, VaultError>;
-    fn _get_debt_by_id(&self, vault_id: &u128) -> Result<Balance, VaultError>;
+    fn _update_vault_debt(&mut self, vault_id: &u128) -> Balance;
+    fn _update_current_interest_coefficient_e12(&mut self) -> u128;
+    fn _get_current_interest_coefficient_e12(&self) -> u128;
+    fn _get_debt_by_id(&self, vault_id: &u128) -> Balance;
     fn _get_collateral_by_id(&self, vault_id: &u128) -> Balance;
-    fn _get_last_interest_coefficient_by_id_e12(
-        &self,
-        vault_id: &u128,
-    ) -> Result<Balance, VaultError>;
+    fn _get_last_interest_coefficient_by_id_e12(&self, vault_id: &u128) -> Balance;
     fn _add_collected_interests(&mut self, amount: Balance);
     fn _sub_collected_interests(&mut self, amount: Balance);
 }
