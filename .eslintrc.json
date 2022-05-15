@@ -49,17 +49,17 @@
         "no-shadow": "off",
         "@typescript-eslint/no-shadow": "error",
         "no-unused-vars": "off",
-        "@typescript-eslint/no-unused-vars": "error",
+        "@typescript-eslint/no-unused-vars": "warn",
         "@typescript-eslint/no-explicit-any": "off",
         "@typescript-eslint/ban-ts-comment": "off",
         "@typescript-eslint/explicit-module-boundary-types": "off",
         "no-magic-numbers": "off",
         "@typescript-eslint/no-magic-numbers": [
-          "error",
+          "warn",
           {
             "ignoreArrayIndexes": true,
             "ignoreEnums": true,
-            "ignore": [-1, 0, 1, 2, 10]
+            "ignore": [-1, 0, 1, 2]
           }
         ],
         "@typescript-eslint/no-namespace": ["error", { "allowDeclarations": true }]
