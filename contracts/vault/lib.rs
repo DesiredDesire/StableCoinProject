@@ -24,8 +24,8 @@ pub mod vault {
     const E6: u128 = 10_u128.pow(6);
     const E12: u128 = 10_u128.pow(12);
 
-    const COLLATERAL_DECIMALS: u128 = 1000000000000;
-    const STABLE_DECIMALS: u128 = 1000000;
+    const COLLATERAL_DECIMALS: u128 = 10_u128.pow(12);
+    const STABLE_DECIMALS: u128 = 10_u128.pow(6);
 
     #[ink(storage)]
     #[derive(
@@ -110,6 +110,8 @@ pub mod vault {
                 instance.last_interest_coefficient_timestamp = instance.env().block_timestamp();
                 instance.maximum_minimum_collateral_coefficient_e6 =
                     maximum_minimum_collateral_coefficient_e6;
+                instance.current_minimum_collateral_coefficient_e6 =
+                    maximum_minimum_collateral_coefficient_e6;
                 instance.collateral_step_value_e6 = collateral_step_value_e6;
                 instance.interest_rate_step_value_e12 = interest_rate_step_value_e12;
                 instance._init_with_owner(owner);
@@ -125,6 +127,17 @@ pub mod vault {
             value: Vec<u8>,
         ) -> Result<(), VaultError> {
             self._set_attribute(id, key, value)?;
+            Ok(())
+        }
+
+        //TODO move it
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        pub fn set_oracle_address(
+            &mut self,
+            new_oracle_address: AccountId,
+        ) -> Result<(), VaultError> {
+            self.oracle_address = new_oracle_address;
             Ok(())
         }
     }
@@ -491,19 +504,22 @@ pub mod vault {
 
         // return maximal debt for a vault
         fn _get_debt_ceiling(&self, vault_id: u128) -> Balance {
-            let debt_ceiling = self._vault_collateral_value_e6(vault_id) * STABLE_DECIMALS
+            ink_env::debug_println!("_get_debt_ceiling:");
+            let debt_ceiling = self._vault_collateral_value_e6(vault_id) * 1000000
                 / self.current_minimum_collateral_coefficient_e6;
             debt_ceiling
         }
 
         // returns value of vaults collateral
         fn _vault_collateral_value_e6(&self, vault_id: u128) -> u128 {
+            ink_env::debug_println!("_vault_collateral_value_e6:");
             let collateral = self._get_collateral_by_id(&vault_id);
             self._collateral_value_e6(collateral)
         }
 
         // collateral amount -> collateral value
         fn _collateral_value_e6(&self, collateral: Balance) -> u128 {
+            ink_env::debug_println!("_collateral_value_e6:");
             let collateral_price_e6 = OraclingRef::get_azero_usd_price_e6(&self.oracle_address);
             collateral * collateral_price_e6 / COLLATERAL_DECIMALS
         }

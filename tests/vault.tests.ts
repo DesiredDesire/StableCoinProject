@@ -3,7 +3,7 @@ import { expect, fromSigner, setupContract } from '../scripts/helpers';
 import { consts } from '../scripts/constants';
 import { Signer } from 'redspot/types';
 import Contract from '@redspot/patract/contract';
-import { setupSystem } from '../scripts/ourDeploy';
+import { deploySystem } from '../scripts/ourDeploy';
 const { getSigners, api } = network;
 
 const E6: bigint = 1000000n;
@@ -13,7 +13,7 @@ describe('Vault', () => {
   let users: Signer[];
   let owner: Signer;
   let oracleContract: Contract;
-  let emittedTokenContract: Contract;
+  let stableTokenContract: Contract;
   let collateralTokenContract: Contract;
   let measurerContract: Contract;
   let vaultContract: Contract;
@@ -22,9 +22,9 @@ describe('Vault', () => {
   beforeEach('setup system', async () => {
     users = await getSigners();
     owner = users.shift() as Signer;
-    const contracts = await setupSystem(owner);
+    const contracts = await deploySystem(owner);
     oracleContract = contracts.oracleContract;
-    emittedTokenContract = contracts.emittedTokenContract;
+    stableTokenContract = contracts.stableTokenContract;
     collateralTokenContract = contracts.collateralTokenContract;
     measurerContract = contracts.measurerContract;
     vaultContract = contracts.vaultContract;
@@ -131,21 +131,26 @@ describe('Vault', () => {
     });
 
     it('get debt ceiling returns correct value', async () => {
+      console.log('start');
       const debtCeiling = (((DEPOSITED_AMOUNT * AZERO_USD_PRICE) / COL_DEC) * STA_DEC) / 2000000n;
       await expect(vaultContract.query.getDebtCeiling(0)).to.have.output(debtCeiling);
     });
 
     it('borrow should work for debt ceiling', async () => {
+      console.log('start');
+
       const debtCeiling = await BigInt((await vaultContract.query.getDebtCeiling(0)).output?.toString() as string);
       await expect(fromSigner(vaultContract, users[0].address).tx.borrowToken(0, debtCeiling)).to.eventually.be.fulfilled;
-      await expect(emittedTokenContract.query.balanceOf(users[0].address)).to.have.output(debtCeiling);
+      await expect(stableTokenContract.query.balanceOf(users[0].address)).to.have.output(debtCeiling);
       await expect(vaultContract.query.getVaultDetails(0)).to.have.output([DEPOSITED_AMOUNT, debtCeiling]);
     });
 
     it('borrow should work for debt ceiling - 1', async () => {
+      console.log('start');
+
       const debtCeiling = await BigInt((await vaultContract.query.getDebtCeiling(0)).output?.toString() as string);
       await expect(fromSigner(vaultContract, users[0].address).tx.borrowToken(0, debtCeiling - 1n)).to.eventually.be.fulfilled;
-      await expect(emittedTokenContract.query.balanceOf(users[0].address)).to.have.output(debtCeiling - 1n);
+      await expect(stableTokenContract.query.balanceOf(users[0].address)).to.have.output(debtCeiling - 1n);
       await expect(vaultContract.query.getVaultDetails(0)).to.have.output([DEPOSITED_AMOUNT, debtCeiling - 1n]);
     });
   });

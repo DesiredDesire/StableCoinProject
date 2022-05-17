@@ -1,7 +1,7 @@
 import { patract, network } from 'redspot';
 import { AccountId } from '@polkadot/types/interfaces';
 import { expect, fromSigner, setupContract } from '../scripts/helpers';
-import { setupSystem } from '../scripts/ourDeploy';
+import { deploySystem } from '../scripts/ourDeploy';
 import { Signer } from 'redspot/types';
 import Contract from '@redspot/patract/contract';
 const { getSigners, api } = network;
@@ -11,7 +11,7 @@ const DECIMALS = 18;
 describe('Deployment', () => {
   let owner: Signer;
   let oracleContract: Contract;
-  let emittedTokenContract: Contract;
+  let stableTokenContract: Contract;
   let collateralTokenContract: Contract;
   let measurerContract: Contract;
   let vaultContract: Contract;
@@ -20,9 +20,9 @@ describe('Deployment', () => {
   beforeEach('setup system', async () => {
     const accounts = await getSigners();
     owner = accounts[0];
-    const contracts = await setupSystem(owner);
+    const contracts = await deploySystem(owner);
     oracleContract = contracts.oracleContract;
-    emittedTokenContract = contracts.emittedTokenContract;
+    stableTokenContract = contracts.stableTokenContract;
     collateralTokenContract = contracts.collateralTokenContract;
     measurerContract = contracts.measurerContract;
     vaultContract = contracts.vaultContract;
@@ -45,9 +45,9 @@ describe('Deployment', () => {
     });
 
     it('check vault role assignations', async () => {
-      await expect(emittedTokenContract.query.hasRole(consts.MINTER, vaultContract.address)).to.have.output(true);
-      await expect(emittedTokenContract.query.hasRole(consts.BURNER, vaultContract.address)).to.have.output(true);
-      await expect(emittedTokenContract.query.hasRole(consts.SETTER, owner.address)).to.have.output(true);
+      await expect(stableTokenContract.query.hasRole(consts.MINTER, vaultContract.address)).to.have.output(true);
+      await expect(stableTokenContract.query.hasRole(consts.BURNER, vaultContract.address)).to.have.output(true);
+      await expect(stableTokenContract.query.hasRole(consts.SETTER, owner.address)).to.have.output(true);
     });
   });
 });

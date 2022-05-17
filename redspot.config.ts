@@ -72,6 +72,44 @@ const types = {
     },
   },
 
+  StableCoinProjectSPControllingSPControllingError: {
+    enum: {
+      Generator: null,
+      NoProfit: null,
+      One: null,
+      PausableError: 'ContractsErrorsPausablePausableError',
+      OwnableError: 'ContractsErrorsOwnableOwnableError',
+      PSP22Error: 'ContractsErrorsPsp22Psp22Error',
+      EmittingError: 'StableCoinProjectEmitingEmitingError',
+    },
+  },
+
+  StableCoinProjectSPGeneratingSPGeneratingError: {
+    enum: {
+      Controller: null,
+      PausableError: 'ContractsErrorsPausablePausableError',
+      OwnableError: 'ContractsErrorsOwnableOwnableError',
+      PSP22Error: 'ContractsErrorsPsp22Psp22Error',
+    },
+  },
+
+  StableCoinProjectStableControllerStableControllerError: {
+    enum: {
+      CouldntFeed: null,
+      OwnableError: 'ContractsErrorsOwnableOwnableError',
+      MeasuringError: 'StableCoinProjectMeasuringMeasuringError',
+      PSP22Error: 'ContractsErrorsPsp22Psp22Error',
+    },
+  },
+
+  StableCoinProjectVaultControllerVaultControllerError: {
+    enum: {
+      CouldntFeed: null,
+      MeasuringError: 'StableCoinProjectMeasuringMeasuringError',
+      VaultError: 'StableCoinProjectVaultVaultError',
+    },
+  },
+
   StableCoinProjectVaultVaultError: {
     _enum: {
       VaultController: null,
