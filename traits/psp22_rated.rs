@@ -41,6 +41,8 @@ pub trait PSP22RatedInternals {
     fn _unupdated_balance_of(&self, account: &AccountId) -> Balance;
     fn _is_unrated(&self, account: &AccountId) -> bool;
     fn _applied_denominator_e12(&self, account: &AccountId) -> u128;
+    fn _is_tax_free(&self, account: &AccountId) -> bool;
+    fn _account_debt(&self, account: &AccountId) -> Balance;
     fn _update_current_denominator_e12(&mut self) -> u128;
     fn _switch_is_unrated(&mut self, account: AccountId) -> Result<(), PSP22Error>;
     fn _increase_balance(
@@ -55,4 +57,5 @@ pub trait PSP22RatedInternals {
         amount: Balance,
         current_denominator_e12: u128,
     ) -> Result<(), PSP22Error>;
+    fn _calculate_tax(&self, account: AccountId, amount: Balance, tax_e6: u128) -> Balance;
 }

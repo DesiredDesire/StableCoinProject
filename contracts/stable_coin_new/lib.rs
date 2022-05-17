@@ -13,9 +13,9 @@ pub mod stable_coin {
         modifiers,
         traits::{AccountIdExt, Flush},
     };
+    use stable_coin_project::impls::profit_generating::*;
     use stable_coin_project::traits::managing::*;
     use stable_coin_project::traits::psp22_rated::*;
-    use stable_coin_project::traits::stable_controlling::*;
 
     use ink_env::{CallFlags, Error as EnvError};
     use ink_lang::codegen::EmitEvent;
@@ -25,7 +25,7 @@ pub mod stable_coin {
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
-    // const E12: u128 = 1000000000000;
+    const E6: u128 = 1000000;
 
     #[ink(storage)]
     #[derive(
@@ -35,6 +35,7 @@ pub mod stable_coin {
         PSP22Storage,
         PSP22MetadataStorage,
         AccessControlStorage,
+        PGeneratingStorage,
     )]
     pub struct StableCoinContract {
         #[OwnableStorageField]
@@ -45,21 +46,27 @@ pub mod stable_coin {
         metadata: PSP22MetadataData,
         #[PSP22StorageField]
         psp22: PSP22Data,
-        pub is_unrated: Mapping<AccountId, bool>,
+        #[PGeneratingStorageField]
+        generate: PGeneratingData,
 
+        // immutables
+
+        // mutables_internal
         pub rated_supply: Balance,
         pub unrated_supply: Balance,
-
         pub current_denominator_e12: u128,
         pub last_current_denominator_update_timestamp: Timestamp,
-        pub current_interest_rate_e12: i128,
         pub applied_denominator_e12: Mapping<AccountId, u128>,
 
-        pub interest_income: Balance,
-        pub interest_debt: Balance,
+        // mutables_external
+        pub is_unrated: Mapping<AccountId, bool>,
 
         pub controller_address: AccountId,
-        pub treassury_address: AccountId,
+        pub current_interest_rate_e12: i128,
+
+        pub tax_e6: u128,
+        pub is_tax_free: Mapping<AccountId, bool>,
+        pub account_debt: Mapping<AccountId, Balance>, //TODO think about moving this mapping to different contracts
     }
 
     impl Ownable for StableCoinContract {}
@@ -239,7 +246,14 @@ pub mod stable_coin {
 
             let current_denominator_e12 = self._update_current_denominator_e12();
             self._decrease_balance(from, amount, current_denominator_e12)?;
-            self._increase_balance(from, amount, current_denominator_e12);
+            let tax_e6 = self.tax_e6;
+            if tax_e6 == 0 {
+                self._increase_balance(to, amount, current_denominator_e12);
+            } else {
+                let tax = self._calculate_tax(to, amount, tax_e6);
+                self._increase_balance(to, amount - tax, current_denominator_e12);
+                self._add_profit(tax);
+            }
             // self._after_token_transfer(Some(&account), None, &amount)?;
             self._emit_transfer_event(Some(from), Some(to), amount);
             Ok(())
@@ -298,31 +312,6 @@ pub mod stable_coin {
 
     impl PSP22Rated for StableCoinContract {
         #[ink(message)]
-        fn rated_supply(&self) -> Balance {
-            self.rated_supply.clone()
-        }
-
-        #[ink(message)]
-        fn unrated_supply(&self) -> Balance {
-            self.unrated_supply.clone()
-        }
-
-        #[ink(message)]
-        fn applied_denominator_e12(&self) -> Balance {
-            self.unrated_supply.clone()
-        }
-
-        #[ink(message)]
-        fn interest_income(&self) -> Balance {
-            self.interest_income.clone()
-        }
-
-        #[ink(message)]
-        fn interest_debt(&self) -> Balance {
-            self.interest_debt.clone()
-        }
-
-        #[ink(message)]
         #[modifiers(only_role(SETTER))]
         fn set_is_unrated(&mut self, account: AccountId, set_to: bool) -> Result<(), PSP22Error> {
             let is_unrated: bool = self._is_unrated(&account);
@@ -330,26 +319,6 @@ pub mod stable_coin {
                 self._switch_is_unrated(account)?; //TODO : erroe propagation
             }
             Ok(())
-        }
-
-        #[ink(message)]
-        #[modifiers(only_owner)]
-        fn change_treassury_address(
-            &mut self,
-            new_treassury_address: AccountId,
-        ) -> Result<(), PSP22Error> {
-            let old_treassury_address = self.treassury_address;
-            self._switch_is_unrated(new_treassury_address)?;
-            self.treassury_address = new_treassury_address;
-            self._switch_is_unrated(old_treassury_address)?;
-            Ok(())
-        }
-
-        #[ink(message)]
-        fn collect_interest_income(&mut self) -> Result<(), PSP22Error> {
-            let interest_income: Balance = self.interest_income;
-            self.interest_income = 0;
-            self._mint(self.treassury_address, interest_income)
         }
 
         #[ink(message)]
@@ -378,6 +347,23 @@ pub mod stable_coin {
         }
     }
 
+    impl PSP22RatedView for StableCoinContract {
+        #[ink(message)]
+        fn rated_supply(&self) -> Balance {
+            self.rated_supply.clone()
+        }
+
+        #[ink(message)]
+        fn unrated_supply(&self) -> Balance {
+            self.unrated_supply.clone()
+        }
+
+        #[ink(message)]
+        fn applied_denominator_e12(&self) -> Balance {
+            self.unrated_supply.clone()
+        }
+    }
+
     impl PSP22RatedInternals for StableCoinContract {
         fn _unupdated_balance_of(&self, account: &AccountId) -> Balance {
             self.psp22.balances.get(account).unwrap_or(0)
@@ -391,6 +377,14 @@ pub mod stable_coin {
             self.applied_denominator_e12.get(account).unwrap_or(0) //TODO check
         }
 
+        fn _is_tax_free(&self, account: &AccountId) -> bool {
+            self.is_tax_free.get(account).unwrap_or(false)
+        }
+
+        fn _account_debt(&self, account: &AccountId) -> Balance {
+            self.account_debt.get(account).unwrap_or(0)
+        }
+
         fn _update_current_denominator_e12(&mut self) -> u128 {
             let updated_denominator = self.current_denominator_e12
                 * (((self.env().block_timestamp() - self.last_current_denominator_update_timestamp)
@@ -399,35 +393,6 @@ pub mod stable_coin {
 
             self.current_denominator_e12 = updated_denominator;
             updated_denominator
-        }
-
-        fn _add_collected_interests(&mut self, amount: Balance) {
-            let interest_debt = self.interest_debt;
-            if interest_debt > 0 {
-                if amount > interest_debt {
-                    let interest_income = amount - interest_debt;
-                    self.interest_debt = 0;
-                    self.interest_income = interest_income;
-                } else if amount < interest_debt {
-                    self.interest_debt = interest_debt - amount;
-                } else {
-                    self.interest_debt = 0;
-                }
-            }
-        }
-        fn _sub_collected_interests(&mut self, amount: Balance) {
-            let interest_income = self.interest_income;
-            if interest_income > 0 {
-                if amount > interest_income {
-                    let interest_debt = amount - interest_income;
-                    self.interest_income = 0;
-                    self.interest_debt = interest_debt;
-                } else if amount < interest_income {
-                    self.interest_income = interest_income - amount;
-                } else {
-                    self.interest_income = 0;
-                }
-            }
         }
 
         fn _switch_is_unrated(&mut self, account: AccountId) -> Result<(), PSP22Error> {
@@ -447,7 +412,7 @@ pub mod stable_coin {
                     self.psp22
                         .balances
                         .insert(&account, &(unupdated_balance - to_substract));
-                    self._add_collected_interests(to_substract);
+                    self._add_profit(to_substract);
                     self.rated_supply -= to_substract;
                     // positive interest rates
                 } else if current_denominator_e12 < applied_denominator_e12 {
@@ -459,13 +424,42 @@ pub mod stable_coin {
                     self.psp22
                         .balances
                         .insert(&account, &(unupdated_balance + to_add));
-                    self._sub_collected_interests(to_add);
+                    self._sub_profit(to_add);
                     self.rated_supply += to_add;
                 }
                 self.is_unrated.insert(&account, &(true));
             }
             Ok(())
         }
+
+        // fn _update_balance_of(&mut self, account: AccountId) {
+        //     let unupdated_balance: Balance = self._unupdated_balance_of(&account);
+
+        //     if !self._is_unrated(&account) {
+        //         let applied_denominator_e12 = self._applied_denominator_e12(&account);
+        //         // negative interest rates
+        //         if current_denominator_e12 > applied_denominator_e12 {
+        //             let denominator_difference_e12 =
+        //                 current_denominator_e12 - applied_denominator_e12;
+        //             let to_substract = unupdated_balance * denominator_difference_e12
+        //                 / current_denominator_e12
+        //                 + 1; //round up
+        //             self._add_profit(to_substract);
+        //             self.rated_supply = self.rated_supply - to_substract;
+        //             // positive interest rates
+        //         } else if current_denominator_e12 < applied_denominator_e12 {
+        //             let denominator_difference_e12 =
+        //                 applied_denominator_e12 - current_denominator_e12;
+        //             let to_add = unupdated_balance * denominator_difference_e12
+        //                 / current_denominator_e12
+        //                 - 1; //round down
+        //             self._sub_profit(to_add);
+        //             self.rated_supply = self.rated_supply + to_add;
+        //         }
+        //     }
+        //     self.applied_denominator_e12
+        //         .insert(&account, &current_denominator_e12);
+        // }
 
         fn _increase_balance(
             &mut self,
@@ -487,7 +481,7 @@ pub mod stable_coin {
                     self.psp22
                         .balances
                         .insert(&account, &(unupdated_balance - to_substract + amount));
-                    self._add_collected_interests(to_substract);
+                    self._add_profit(to_substract);
                     self.rated_supply = self.rated_supply - to_substract + amount;
                     // positive interest rates
                 } else if current_denominator_e12 < applied_denominator_e12 {
@@ -499,7 +493,7 @@ pub mod stable_coin {
                     self.psp22
                         .balances
                         .insert(&account, &(unupdated_balance + to_add + amount));
-                    self._sub_collected_interests(to_add);
+                    self._sub_profit(to_add);
                     self.rated_supply = self.rated_supply + to_add + amount;
                 } else {
                     self.psp22
@@ -541,7 +535,7 @@ pub mod stable_coin {
                     self.psp22
                         .balances
                         .insert(&account, &(updated_balance - amount));
-                    self._add_collected_interests(to_substract);
+                    self._add_profit(to_substract);
                     self.rated_supply = self.rated_supply - to_substract - amount;
                     // positive interest rates
                 } else if current_denominator_e12 < applied_denominator_e12 {
@@ -557,7 +551,7 @@ pub mod stable_coin {
                     self.psp22
                         .balances
                         .insert(&account, &(updated_balance + amount));
-                    self._sub_collected_interests(to_add);
+                    self._sub_profit(to_add);
                     self.rated_supply = self.rated_supply + to_add - amount;
                 } else {
                     if amount > unupdated_balance {
@@ -582,6 +576,25 @@ pub mod stable_coin {
 
             Ok(())
         }
+
+        fn _calculate_tax(&self, account: AccountId, amount: Balance, tax_e6: u128) -> Balance {
+            if self._is_tax_free(&account) {
+                return 0;
+            }
+
+            let account_debt = self._account_debt(&account);
+            if account_debt == 0 {
+                return amount * tax_e6 / E6;
+            } else {
+                let account_balance = self.balance_of(account);
+                if account_debt >= account_balance {
+                    return 0;
+                } else {
+                    let taxed_amount = account_balance - account_debt;
+                    return taxed_amount * tax_e6 / E6;
+                }
+            }
+        }
     }
 
     impl StableCoinContract {
@@ -590,7 +603,7 @@ pub mod stable_coin {
             name: Option<String>,
             symbol: Option<String>,
             decimal: u8,
-            treassury_address: AccountId,
+            profit_controller: AccountId,
             controller_address: AccountId,
             owner: AccountId,
         ) -> Self {
@@ -603,7 +616,7 @@ pub mod stable_coin {
                 instance._init_with_owner(owner);
                 instance._init_with_admin(owner);
                 // TaxedCoinData
-                instance.treassury_address = treassury_address;
+                instance.generate.profit_controller = profit_controller;
                 instance.controller_address = controller_address;
             })
         }
