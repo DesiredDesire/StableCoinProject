@@ -17,13 +17,13 @@ use ink_storage::traits::StorageLayout;
 /// define the struct with the data that our smart contract will be using
 /// this will isolate the logic of our smart contract from its storage
 pub struct PControllingData {
-    //immutable
+    // immutables
     pub profit_psp22: AccountId,
 
-    //mutable_interna;
+    // mutables_internal;
     pub total_profit: i128,
 
-    //mutable_external
+    // mutables_external
     pub is_generator: Mapping<AccountId, bool>,
     pub treassury_address: AccountId,
     pub treassury_part_e6: u128,

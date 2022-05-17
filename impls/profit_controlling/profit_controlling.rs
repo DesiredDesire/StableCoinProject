@@ -3,7 +3,7 @@ use brush::traits::AccountId;
 pub use super::data::*;
 pub use crate::traits::profit_controlling::*;
 pub use crate::traits::profit_generating::*;
-use brush::{contracts::ownable::*, contracts::pausable::*, contracts::psp22::*, modifiers};
+use brush::{contracts::ownable::*, contracts::pausable::*, modifiers};
 
 impl<T: PControllingStorage + OwnableStorage + PausableStorage> PControlling for T {
     default fn collect_profit(

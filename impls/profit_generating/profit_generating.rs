@@ -29,6 +29,6 @@ impl<T: PGeneratingStorage> PGeneratingInternal for T {
         PGeneratingStorage::get_mut(self).generated_income += amount as i128;
     }
     fn _sub_income(&mut self, amount: u128) {
-        PGeneratingStorage::get_mut(self).generated_income -= (amount as i128);
+        PGeneratingStorage::get_mut(self).generated_income -= amount as i128;
     }
 }
