@@ -8,14 +8,18 @@ use brush::{
 
 use crate::traits::collateralling::*;
 use crate::traits::emitting::*;
-use crate::traits::vault_eating::*;
+use crate::traits::profit_generating::*;
 
 /// Combination of all traits of the contract to simplify calls to the contract
 #[brush::wrapper]
-pub type VaultContractRef = dyn Vault + Ownable + Pausable + Collateralling + Emitting + VEating;
+pub type VaultContractRef =
+    dyn Vault + Ownable + Pausable + Collateralling + Emitting + PGenerating;
 
 #[brush::trait_definition]
-pub trait VaultContractCheck: Vault + Ownable + Pausable + Collateralling + Emitting {}
+pub trait VaultContractCheck:
+    Vault + Ownable + Pausable + Collateralling + Emitting + PGenerating
+{
+}
 
 #[brush::wrapper]
 pub type VaultRef = dyn Vault;

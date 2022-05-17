@@ -3,10 +3,13 @@
 
 #[brush::contract]
 pub mod vault {
-    use brush::contracts::psp34::PSP34Internal;
-    use brush::{contracts::ownable::*, contracts::pausable::*, contracts::psp34::*, modifiers};
+    use brush::{
+        contracts::{ownable::*, pausable::*, psp22::*, psp34::*},
+        modifiers,
+    };
     use ink_lang::codegen::EmitEvent;
     use ink_lang::codegen::Env;
+    use ink_prelude::string::ToString;
     use ink_prelude::vec::Vec;
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
@@ -77,9 +80,27 @@ pub mod vault {
     impl EmittingInternal for VaultContract {} // minting and burning emited_token
     impl Emitting for VaultContract {} // emited_amount() = minted - burned
     impl CollaterallingInternal for VaultContract {} // transfer in, transfer out
-    impl Collateralling for VaultContract {} // rescue[only_owner], amount of collaterall
+    impl Collateralling for VaultContract {} // amount of collaterall
     impl PGeneratingInternal for VaultContract {} // modify generated_income
     impl PGenerating for VaultContract {} //manage generated_income
+
+    impl PSP22Receiver for VaultContract {
+        #[ink(message)]
+        fn before_received(
+            &mut self,
+            operator: AccountId,
+            from: AccountId,
+            value: Balance,
+            data: Vec<u8>,
+        ) -> Result<(), PSP22ReceiverError> {
+            if self.env().caller() != self.collateral.collateral_token_address {
+                return Err(PSP22ReceiverError::TransferRejected(
+                    "UnacceptedPsp22".to_string(),
+                ));
+            }
+            Ok(())
+        }
+    }
 
     impl Vault for VaultContract {
         // mints a NFT to caller that represent vault
