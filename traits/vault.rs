@@ -54,6 +54,8 @@ pub trait Vault {
 #[brush::trait_definition]
 pub trait VaultView {
     #[ink(message)]
+    fn get_next_id(&mut self) -> u128;
+    #[ink(message)]
     fn get_total_debt(&self) -> Balance;
     #[ink(message)]
     fn get_vault_details(&self, vault_id: u128) -> (Balance, Balance);

@@ -20,8 +20,8 @@ pub mod shares_token {
     const MINTER: RoleType = ink_lang::selector_id!("MINTER");
     const BURNER: RoleType = ink_lang::selector_id!("BURNER");
 
-    const GDECIMALS: u128 = 10_u128.pow(6);
-    const SDECIMALS: u128 = 10_u128.pow(6);
+    const SHARES_DECIMALS: u128 = 10_u128.pow(6);
+    const STABLE_DECIMALS: u128 = 10_u128.pow(6);
     const INIT_SUP: u128 = 10_u128.pow(7); //10 * 10^6
 
     #[ink(storage)]
@@ -34,7 +34,7 @@ pub mod shares_token {
         PSP22MetadataStorage,
         AccessControlStorage,
     )]
-    pub struct GPSP22Contract {
+    pub struct SharesContract {
         #[PSP22StorageField]
         psp22: PSP22Data,
         #[PSP22MetadataStorageField]
@@ -49,9 +49,31 @@ pub mod shares_token {
         pub total_minted_amount: Balance,
     }
 
-    impl Ownable for GPSP22Contract {}
+    impl SharesContract {
+        #[ink(constructor)]
+        pub fn new(
+            name: Option<String>,
+            symbol: Option<String>,
+            decimal: u8,
+            owner: AccountId,
+        ) -> Self {
+            ink_lang::codegen::initialize_contract(|instance: &mut Self| {
+                // metadata
+                instance.metadata.name = name;
+                instance.metadata.symbol = symbol;
+                instance.metadata.decimals = decimal;
+                // ownable & access_control
+                instance._init_with_owner(owner);
+                instance._init_with_admin(owner);
+                instance.total_minted_amount = INIT_SUP * SHARES_DECIMALS;
+                instance._mint(owner, INIT_SUP * SHARES_DECIMALS);
+            })
+        }
+    }
 
-    impl OwnableInternal for GPSP22Contract {
+    impl Ownable for SharesContract {}
+
+    impl OwnableInternal for SharesContract {
         fn _emit_ownership_transferred_event(
             &self,
             _previous_owner: Option<AccountId>,
@@ -64,9 +86,9 @@ pub mod shares_token {
         }
     }
 
-    impl AccessControl for GPSP22Contract {}
+    impl AccessControl for SharesContract {}
 
-    impl AccessControlInternal for GPSP22Contract {
+    impl AccessControlInternal for SharesContract {
         fn _emit_role_admin_changed(
             &mut self,
             _role: RoleType,
@@ -102,9 +124,9 @@ pub mod shares_token {
         }
     }
 
-    impl Pausing for GPSP22Contract {}
+    impl Pausing for SharesContract {}
 
-    impl Pausable for GPSP22Contract {}
+    impl Pausable for SharesContract {}
 
     #[ink(event)]
     pub struct Paused {
@@ -116,7 +138,7 @@ pub mod shares_token {
         #[ink(topic)]
         by: Option<AccountId>,
     }
-    impl PausableInternal for GPSP22Contract {
+    impl PausableInternal for SharesContract {
         /// User must override this method in their contract.
         fn _emit_paused_event(&self, _account: AccountId) {
             self.env().emit_event(Paused { by: Some(_account) });
@@ -128,25 +150,25 @@ pub mod shares_token {
         }
     }
 
-    impl Managing for GPSP22Contract {}
+    impl Managing for SharesContract {}
 
-    impl PSP22 for GPSP22Contract {}
+    impl PSP22 for SharesContract {}
 
-    impl PSP22Metadata for GPSP22Contract {}
+    impl PSP22Metadata for SharesContract {}
 
-    impl PSP22Mintable for GPSP22Contract {
+    impl PSP22Mintable for SharesContract {
         #[ink(message)]
         #[modifiers(only_role(MINTER))]
         #[modifiers(when_not_paused)]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            let amount_to_mint =
-                amount * GDECIMALS / SDECIMALS * INIT_SUP / (2 * self.total_minted_amount);
+            let amount_to_mint = amount * SHARES_DECIMALS / STABLE_DECIMALS * INIT_SUP
+                / (2 * self.total_minted_amount);
             self.total_minted_amount += amount_to_mint;
             self._mint(account, amount)
         }
     }
 
-    impl PSP22Burnable for GPSP22Contract {
+    impl PSP22Burnable for SharesContract {
         #[ink(message)]
         #[modifiers(only_role(BURNER))]
         fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
@@ -155,25 +177,6 @@ pub mod shares_token {
         }
     }
 
-    impl GPSP22Contract {
-        #[ink(constructor)]
-        pub fn new(
-            name: Option<String>,
-            symbol: Option<String>,
-            decimal: u8,
-            owner: AccountId,
-        ) -> Self {
-            ink_lang::codegen::initialize_contract(|instance: &mut Self| {
-                // metadata
-                instance.metadata.name = name;
-                instance.metadata.symbol = symbol;
-                instance.metadata.decimals = decimal;
-                // ownable & access_control
-                instance._init_with_owner(owner);
-                instance._init_with_admin(owner);
-            })
-        }
-    }
     // EVENT DEFINITIONS #[ink(event)]
     #[ink(event)]
     pub struct OwnershipTransferred {

@@ -3,9 +3,13 @@ use brush::traits::AccountId;
 pub use super::data::*;
 pub use crate::traits::shares_profit_controlling::*;
 pub use crate::traits::shares_profit_generating::*;
-use brush::{contracts::ownable::*, contracts::pausable::*, modifiers};
+use brush::{contracts::ownable::*, contracts::traits::psp22::*, modifiers};
+use ink_env::CallFlags;
+use ink_prelude::vec::Vec;
 
-impl<T: SPControllingStorage + OwnableStorage + PausableStorage> SPControlling for T {
+const E6: u128 = 10_u128.pow(6);
+
+impl<T: SPControllingStorage + OwnableStorage> SPControlling for T {
     default fn collect_profit(
         &mut self,
         profit_generator: AccountId,
@@ -28,7 +32,41 @@ impl<T: SPControllingStorage + OwnableStorage + PausableStorage> SPControlling f
             return Err(SPControllingError::NoProfit);
         }
         SPControllingStorage::get_mut(self).total_profit = 0;
+        let shares_address: AccountId = SPControllingStorage::get(self).shares_address;
+        let treassuty_address: AccountId = SPControllingStorage::get(self).treassury_address;
+        let treassury_part_e6: u128 = SPControllingStorage::get(self).treassury_part_e6;
+        let treassury_profit: u128 = profit as u128 * treassury_part_e6 / E6;
+        let owner: AccountId = OwnableStorage::get(self).owner;
+        PSP22Ref::transfer_builder(
+            &shares_address,
+            treassuty_address,
+            treassury_profit,
+            Vec::<u8>::new(),
+        )
+        .call_flags(CallFlags::default().set_allow_reentry(true))
+        .fire()
+        .unwrap()?;
+        PSP22Ref::transfer_builder(
+            &shares_address,
+            owner,
+            profit as u128 - treassury_profit,
+            Vec::<u8>::new(),
+        )
+        .call_flags(CallFlags::default().set_allow_reentry(true))
+        .fire()
+        .unwrap()?;
+        Ok(())
+    }
 
+    #[modifiers(only_owner)]
+    default fn set_is_generator(
+        &mut self,
+        account: AccountId,
+        is: bool,
+    ) -> Result<(), SPControllingError> {
+        SPControllingStorage::get_mut(self)
+            .is_generator
+            .insert(&account, &is);
         Ok(())
     }
 

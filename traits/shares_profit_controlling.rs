@@ -1,5 +1,5 @@
 use brush::{
-    contracts::{traits::ownable::*, traits::pausable::*},
+    contracts::{traits::ownable::*, traits::psp22::PSP22Error},
     traits::AccountId,
 };
 
@@ -8,13 +8,18 @@ use super::shares_profit_generating::SPGeneratingError;
 
 /// Combination of all traits of the contract to simplify calls to the contract
 #[brush::wrapper]
-pub type SPControllingContractRef = dyn SPControlling + Ownable + Pausable;
+pub type SPControllingContractRef = dyn SPControlling + Ownable;
 
 #[brush::wrapper]
 pub type PControllingRef = dyn SPControlling;
 
 #[brush::trait_definition]
 pub trait SPControlling {
+    // profitting and shares
+    #[ink(message)]
+    fn set_is_generator(&mut self, account: AccountId, is: bool) -> Result<(), SPControllingError>;
+
+    // profitting
     #[ink(message)]
     fn collect_profit(&mut self, profit_generator: AccountId) -> Result<i128, SPControllingError>;
 
@@ -32,6 +37,8 @@ pub trait SPControlling {
         &mut self,
         new_treassury_part_e6: u128,
     ) -> Result<(), SPControllingError>;
+
+    // shares
 
     #[ink(message)]
     fn set_sharing_part_e6(
@@ -59,9 +66,16 @@ pub enum SPControllingError {
     Generator,
     NoProfit,
     One,
+    PSP22Error(PSP22Error),
     OwnableError(OwnableError),
     EmittingError(EmittingError),
     SPGeneratingError(SPGeneratingError),
+}
+
+impl From<PSP22Error> for SPControllingError {
+    fn from(error: PSP22Error) -> Self {
+        SPControllingError::PSP22Error(error)
+    }
 }
 
 impl From<OwnableError> for SPControllingError {

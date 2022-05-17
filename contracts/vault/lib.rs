@@ -4,7 +4,7 @@
 #[brush::contract]
 pub mod vault {
     use brush::{
-        contracts::{ownable::*, pausable::*, psp22::*, psp34::*},
+        contracts::{ownable::*, pausable::*, psp22::*, psp34::extensions::metadata::*, psp34::*},
         modifiers,
     };
     use ink_lang::codegen::EmitEvent;
@@ -21,7 +21,8 @@ pub mod vault {
     use stable_coin_project::traits::vault::*;
 
     // const U128MAX: u128 = 340282366920938463463374607431768211455;
-    const E12: u128 = 1000000000000000;
+    const E6: u128 = 10_u128.pow(6);
+    const E12: u128 = 10_u128.pow(12);
 
     const COLLATERAL_DECIMALS: u128 = 1000000000000;
     const STABLE_DECIMALS: u128 = 1000000;
@@ -33,6 +34,7 @@ pub mod vault {
         OwnableStorage,
         PausableStorage,
         PSP34Storage,
+        PSP34MetadataStorage,
         CollaterallingStorage,
         EmittingStorage,
         SPGeneratingStorage,
@@ -44,6 +46,8 @@ pub mod vault {
         pause: PausableData,
         #[PSP34StorageField] // vault ownership
         psp34: PSP34Data,
+        #[PSP34MetadataStorageField] // vault ownership
+        metadata: PSP34MetadataData,
         #[CollaterallingStorageField] // collateral_token_address && collateral_amount
         collateral: CollaterallingData,
         #[EmittingStorageField] // emited_token_address && emited_amount
@@ -53,6 +57,8 @@ pub mod vault {
 
         // immutables
         pub maximum_minimum_collateral_coefficient_e6: u128,
+        pub interest_rate_step_value_e12: i128,
+        pub collateral_step_value_e6: u128,
 
         // mutables_internal
         pub collateral_by_id: Mapping<u128, Balance>,
@@ -70,9 +76,6 @@ pub mod vault {
 
         //// vault parameters
         pub current_interest_rate_e12: i128, // interest_rate_step_value_e12 * current_interest_step( which is stored in vault_controller)
-        pub interest_rate_stap_value_e12: i128,
-        pub collateral_step_value_e6: u128,
-
         pub current_minimum_collateral_coefficient_e6: u128, // maximum_minimum_collaterall - collateral_step_value * current_collateral_step (shich is stored in vault_controller)
     }
     impl Ownable for VaultContract {} // owner can pause contract
@@ -86,6 +89,45 @@ pub mod vault {
     impl SPGeneratingInternal for VaultContract {} // modify generated_profit and shares_minting_allowance
     impl SPGenerating for VaultContract {} //manage generated_profit
     impl SPGeneratingView for VaultContract {} //manage generated_profit
+
+    impl VaultContract {
+        #[ink(constructor)]
+        pub fn new(
+            shares_token_address: AccountId,
+            collateral_token_address: AccountId,
+            stable_token_address: AccountId,
+            maximum_minimum_collateral_coefficient_e6: u128,
+            collateral_step_value_e6: u128,
+            interest_rate_step_value_e12: i128,
+            owner: AccountId,
+        ) -> Self {
+            ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
+                instance.collateral.collateral_token_address = collateral_token_address;
+                instance.emit.emited_token_address = stable_token_address;
+                instance.spgenerate.shares_token_address = shares_token_address;
+                instance.spgenerate.sharing_part_e6 = E6;
+                instance.current_interest_coefficient_e12 = E12;
+                instance.last_interest_coefficient_timestamp = instance.env().block_timestamp();
+                instance.maximum_minimum_collateral_coefficient_e6 =
+                    maximum_minimum_collateral_coefficient_e6;
+                instance.collateral_step_value_e6 = collateral_step_value_e6;
+                instance.interest_rate_step_value_e12 = interest_rate_step_value_e12;
+                instance._init_with_owner(owner);
+            })
+        }
+
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        pub fn _set_attribute(
+            &mut self,
+            id: Id,
+            key: Vec<u8>,
+            value: Vec<u8>,
+        ) -> Result<(), VaultError> {
+            self._set_attribute(id, key, value)?;
+            Ok(())
+        }
+    }
 
     impl PSP22Receiver for VaultContract {
         #[ink(message)]
@@ -334,7 +376,7 @@ pub mod vault {
             }
 
             self.current_interest_rate_e12 =
-                current_interest_rate_step as i128 * self.interest_rate_stap_value_e12;
+                current_interest_rate_step as i128 * self.interest_rate_step_value_e12;
 
             self.current_minimum_collateral_coefficient_e6 = self
                 .maximum_minimum_collateral_coefficient_e6
@@ -354,6 +396,10 @@ pub mod vault {
     }
 
     impl VaultView for VaultContract {
+        #[ink(message)]
+        fn get_next_id(&mut self) -> u128 {
+            self.next_id
+        }
         // return total debt
         #[ink(message)]
         fn get_total_debt(&self) -> Balance {
@@ -549,39 +595,6 @@ pub mod vault {
             self.last_interest_coefficient_by_id_e12
                 .get(&vault_id)
                 .unwrap_or(0)
-        }
-    }
-
-    impl VaultContract {
-        #[ink(constructor)]
-        pub fn new(
-            oracle_address: AccountId,
-            collateral_token_address: AccountId,
-            emited_token_address: AccountId,
-            interest_rate_stap_value_e12: i128,
-            maximum_minimum_collateral_coefficient_e6: u128,
-            collateral_step_value_e6: u128,
-            owner: AccountId,
-        ) -> Self {
-            ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
-                instance.collateral.collateral_token_address = collateral_token_address;
-                instance.emit.emited_token_address = emited_token_address;
-                instance.current_interest_coefficient_e12 = E12;
-                instance.last_interest_coefficient_timestamp = instance.env().block_timestamp();
-                instance.oracle_address = oracle_address;
-                instance.interest_rate_stap_value_e12 = interest_rate_stap_value_e12;
-                instance.maximum_minimum_collateral_coefficient_e6 =
-                    maximum_minimum_collateral_coefficient_e6;
-                instance.collateral_step_value_e6 = collateral_step_value_e6;
-                instance.current_minimum_collateral_coefficient_e6 =
-                    maximum_minimum_collateral_coefficient_e6;
-                instance.next_id = 0;
-                instance._init_with_owner(owner);
-            })
-        }
-        #[ink(message)]
-        pub fn get_next_id(&mut self) -> u128 {
-            self.next_id
         }
     }
 

@@ -27,7 +27,8 @@ pub mod stable_coin {
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
-    const E6: u128 = 1000000;
+    const E6: u128 = 10_u128.pow(6);
+    const E12: u128 = 10_u128.pow(12);
 
     #[ink(storage)]
     #[derive(
@@ -52,7 +53,7 @@ pub mod stable_coin {
         #[PSP22StorageField]
         psp22: PSP22Data,
         #[SPGeneratingStorageField]
-        generate: SPGeneratingData,
+        spgenerate: SPGeneratingData,
 
         // immutables
 
@@ -72,6 +73,34 @@ pub mod stable_coin {
         pub tax_e6: u128,
         pub is_tax_free: Mapping<AccountId, bool>,
         pub account_debt: Mapping<AccountId, Balance>, //TODO think about moving this mapping to different contracts
+    }
+
+    impl StableCoinContract {
+        #[ink(constructor)]
+        pub fn new(
+            name: Option<String>,
+            symbol: Option<String>,
+            decimal: u8,
+            shares_token_address: AccountId,
+            owner: AccountId,
+        ) -> Self {
+            ink_lang::codegen::initialize_contract(|instance: &mut Self| {
+                // metadata
+                instance.metadata.name = name;
+                instance.metadata.symbol = symbol;
+                instance.metadata.decimals = decimal;
+                // ownable
+                instance._init_with_owner(owner);
+                instance._init_with_admin(owner);
+                // TaxedCoinData
+                instance.spgenerate.shares_token_address = shares_token_address;
+                instance.current_denominator_e12 = E12;
+                instance.last_current_denominator_update_timestamp =
+                    instance.env().block_timestamp();
+                instance.current_interest_rate_e12 = 0;
+                instance.tax_e6 = 0;
+            })
+        }
     }
 
     impl Ownable for StableCoinContract {}
@@ -619,36 +648,6 @@ pub mod stable_coin {
         }
     }
 
-    impl StableCoinContract {
-        #[ink(constructor)]
-        pub fn new(
-            name: Option<String>,
-            symbol: Option<String>,
-            decimal: u8,
-            profit_controller: AccountId,
-            controller_address: AccountId,
-            owner: AccountId,
-        ) -> Self {
-            ink_lang::codegen::initialize_contract(|instance: &mut Self| {
-                // metadata
-                instance.metadata.name = name;
-                instance.metadata.symbol = symbol;
-                instance.metadata.decimals = decimal;
-                // ownable
-                instance._init_with_owner(owner);
-                instance._init_with_admin(owner);
-                // TaxedCoinData
-                instance.generate.profit_controller = profit_controller;
-                instance.controller_address = controller_address;
-            })
-        }
-
-        fn _init_with_owner(&mut self, owner: AccountId) {
-            self.ownable.owner = owner;
-            self._emit_ownership_transferred_event(None, Some(owner));
-        }
-    }
-
     //
     // EVENT DEFINITIONS
     //
@@ -753,7 +752,7 @@ pub mod stable_coin {
         /// OWNABLE TEST
 
         #[ink::test]
-        fn constructor_works() {
+        fn constructor_works(name: String, symbol: String, decimals: u8) {
             let accounts = accounts();
             change_caller(accounts.alice);
             let instance =
