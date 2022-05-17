@@ -74,8 +74,6 @@ pub trait VaultInternal {
     fn _get_debt_by_id(&self, vault_id: &u128) -> Balance;
     fn _get_collateral_by_id(&self, vault_id: &u128) -> Balance;
     fn _get_last_interest_coefficient_by_id_e12(&self, vault_id: &u128) -> Balance;
-    fn _add_collected_interests(&mut self, amount: Balance);
-    fn _sub_collected_interests(&mut self, amount: Balance);
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]

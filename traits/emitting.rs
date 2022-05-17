@@ -19,6 +19,12 @@ pub trait Emitting {
     fn get_emited_token_address(&self) -> AccountId;
 }
 
+pub trait EmittingInternal {
+    fn _mint_emited_token(&mut self, to: AccountId, amount: Balance) -> Result<(), EmittingError>;
+    fn _burn_emited_token(&mut self, from: AccountId, amount: Balance)
+        -> Result<(), EmittingError>;
+}
+
 /// Enum of errors raised by our lending smart contract
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]

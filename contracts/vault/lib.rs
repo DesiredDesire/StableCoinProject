@@ -3,7 +3,6 @@
 
 #[brush::contract]
 pub mod vault {
-    //TODO withdraw interest_income payback interest debt;
     use brush::contracts::psp22::*;
     use brush::contracts::psp34::PSP34Internal;
     use brush::{contracts::ownable::*, contracts::pausable::*, contracts::psp34::*, modifiers};
@@ -15,6 +14,7 @@ pub mod vault {
     use ink_storage::Mapping;
     use stable_coin_project::impls::collateralling::*;
     use stable_coin_project::impls::emitting::*;
+    use stable_coin_project::impls::profit_generating::*;
     use stable_coin_project::traits::oracling::OraclingRef;
     use stable_coin_project::traits::vault::*;
 
@@ -33,6 +33,7 @@ pub mod vault {
         PSP34Storage,
         CollaterallingStorage,
         EmittingStorage,
+        PGeneratingStorage,
     )]
     pub struct VaultContract {
         #[OwnableStorageField]
@@ -45,6 +46,8 @@ pub mod vault {
         collateral: CollaterallingData,
         #[EmittingStorageField] // emited_token_address && emited_amount
         emit: EmittingData,
+        #[PGeneratingStorageField]
+        generate: PGeneratingData,
 
         pub oracle_address: AccountId,
 
@@ -65,9 +68,6 @@ pub mod vault {
 
         pub interest_rate_stap_value_e12: i128,
         pub collateral_step_value_e6: u128,
-        //TODO TOTHINK
-        pub interest_income: Balance, // amount of emitted token that can be mint, collecting debt interest
-        pub interest_debt: Balance,
     }
     impl Ownable for VaultContract {} // owner can pause contract
     impl Pausable for VaultContract {} // when paused borrowing is imposible
@@ -76,6 +76,8 @@ pub mod vault {
     impl Emitting for VaultContract {} // emited_amount() = minted - burned
     impl CollaterallingInternal for VaultContract {} // transfer in, transfer out
     impl Collateralling for VaultContract {} // rescue[only_owner], amount of collaterall
+    impl PGeneratingInternal for VaultContract {} // modify generated_income
+    impl PGenerating for VaultContract {} //manage generated_income
 
     impl Vault for VaultContract {
         // mints a NFT to caller that represent vault
@@ -458,9 +460,9 @@ pub mod vault {
             }
             ink_env::debug_println!("updated_debt: {}", updated_debt);
             if updated_debt > debt {
-                self._add_collected_interests(updated_debt - debt);
+                self._add_income(updated_debt - debt);
             } else if updated_debt < debt {
-                self._sub_collected_interests(debt - updated_debt);
+                self._sub_income(debt - updated_debt);
             }
             //TODO calculate share toekn rewards and mint
             self.debt_by_id.insert(&vault_id, &updated_debt);
@@ -517,35 +519,6 @@ pub mod vault {
             self.last_interest_coefficient_by_id_e12
                 .get(&vault_id)
                 .unwrap_or(0)
-        }
-
-        fn _add_collected_interests(&mut self, amount: Balance) {
-            let interest_debt = self.interest_debt;
-            if interest_debt > 0 {
-                if amount > interest_debt {
-                    let interest_income = amount - interest_debt;
-                    self.interest_debt = 0;
-                    self.interest_income = interest_income;
-                } else if amount < interest_debt {
-                    self.interest_debt = interest_debt - amount;
-                } else {
-                    self.interest_debt = 0;
-                }
-            }
-        }
-        fn _sub_collected_interests(&mut self, amount: Balance) {
-            let interest_income = self.interest_income;
-            if interest_income > 0 {
-                if amount > interest_income {
-                    let interest_debt = amount - interest_income;
-                    self.interest_income = 0;
-                    self.interest_debt = interest_debt;
-                } else if amount < interest_income {
-                    self.interest_income = interest_income - amount;
-                } else {
-                    self.interest_income = 0;
-                }
-            }
         }
     }
 

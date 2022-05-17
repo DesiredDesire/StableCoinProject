@@ -15,12 +15,6 @@ impl<T: EmittingStorage> Emitting for T {
     }
 }
 
-pub trait EmittingInternal {
-    fn _mint_emited_token(&mut self, to: AccountId, amount: Balance) -> Result<(), EmittingError>;
-    fn _burn_emited_token(&mut self, from: AccountId, amount: Balance)
-        -> Result<(), EmittingError>;
-}
-
 impl<T: EmittingStorage> EmittingInternal for T {
     default fn _mint_emited_token(
         &mut self,

@@ -7,6 +7,8 @@ pub mod measuring;
 pub mod minter;
 pub mod oracling;
 pub mod price_feeding;
+pub mod profit_controlling;
+pub mod profit_generating;
 pub mod psp22_rated;
 pub mod stable_coin;
 pub mod stable_controlling;

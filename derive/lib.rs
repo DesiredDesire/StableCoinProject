@@ -44,3 +44,15 @@ declare_derive_storage_trait!(
     OraclingStorage,
     OraclingStorageField
 );
+
+declare_derive_storage_trait!(
+    derive_profit_controlling_storage,
+    PControllingStorage,
+    PControllingStorageField
+);
+
+declare_derive_storage_trait!(
+    derive_profit_generating_storage,
+    PGeneratingStorage,
+    PGeneratingStorageField
+);
