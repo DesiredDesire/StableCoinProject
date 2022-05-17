@@ -25,10 +25,10 @@ impl<T: PGeneratingStorage + OwnableStorage> PGenerating for T {
 }
 
 impl<T: PGeneratingStorage> PGeneratingInternal for T {
-    fn _add_income(&mut self, amount: u128) {
+    fn _add_profit(&mut self, amount: u128) {
         PGeneratingStorage::get_mut(self).generated_income += amount as i128;
     }
-    fn _sub_income(&mut self, amount: u128) {
+    fn _sub_profit(&mut self, amount: u128) {
         PGeneratingStorage::get_mut(self).generated_income -= amount as i128;
     }
 }

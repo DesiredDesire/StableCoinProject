@@ -3,10 +3,8 @@
 
 #[brush::contract]
 pub mod vault {
-    use brush::contracts::psp22::*;
     use brush::contracts::psp34::PSP34Internal;
     use brush::{contracts::ownable::*, contracts::pausable::*, contracts::psp34::*, modifiers};
-    use ink_env::CallFlags;
     use ink_lang::codegen::EmitEvent;
     use ink_lang::codegen::Env;
     use ink_prelude::vec::Vec;
@@ -464,9 +462,9 @@ pub mod vault {
             }
             ink_env::debug_println!("updated_debt: {}", updated_debt);
             if updated_debt > debt {
-                self._add_income(updated_debt - debt);
+                self._add_profit(updated_debt - debt);
             } else if updated_debt < debt {
-                self._sub_income(debt - updated_debt);
+                self._sub_profit(debt - updated_debt);
             }
             //TODO calculate share toekn rewards and mint
             self.debt_by_id.insert(&vault_id, &updated_debt);

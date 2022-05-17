@@ -7,7 +7,7 @@ pub mod psp22_emitable {
     use brush::{
         contracts::access_control::*, contracts::ownable::*,
         contracts::psp22::extensions::burnable::*, contracts::psp22::extensions::metadata::*,
-        contracts::psp22::extensions::mintable::*, contracts::psp22::*, modifiers,
+        contracts::psp22::extensions::mintable::*, modifiers,
     };
     use stable_coin_project::traits::managing::*;
 

@@ -1,5 +1,5 @@
 use brush::{
-    contracts::{psp22::PSP22Error, traits::ownable::*, traits::pausable::*},
+    contracts::traits::ownable::*,
     traits::{AccountId, Balance},
 };
 
@@ -31,8 +31,8 @@ pub trait PGeneratingView {
     fn get_profit_controller_address(&self) -> AccountId;
 }
 pub trait PGeneratingInternal {
-    fn _add_income(&mut self, amount: Balance);
-    fn _sub_income(&mut self, amount: Balance);
+    fn _add_profit(&mut self, amount: Balance);
+    fn _sub_profit(&mut self, amount: Balance);
 }
 
 /// Enum of errors raised by our lending smart contract

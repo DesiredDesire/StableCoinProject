@@ -1,6 +1,6 @@
 use brush::{
-    contracts::{psp22::*, traits::ownable::*, traits::pausable::*},
-    traits::{AccountId, Balance},
+    contracts::{traits::ownable::*, traits::pausable::*},
+    traits::AccountId,
 };
 
 use super::emitting::EmittingError;
