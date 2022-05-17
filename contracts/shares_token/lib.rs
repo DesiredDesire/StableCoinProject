@@ -2,13 +2,14 @@
 #![feature(min_specialization)] //false positive - without this attribute contract does not compile
 
 #[brush::contract]
-pub mod governance_token {
+pub mod shares_token {
 
     use brush::{
-        contracts::access_control::*, contracts::ownable::*,
+        contracts::access_control::*, contracts::ownable::*, contracts::pausable::*,
         contracts::psp22::extensions::burnable::*, contracts::psp22::extensions::metadata::*,
         contracts::psp22::extensions::mintable::*, modifiers,
     };
+    use stable_coin_project::impls::pausing::*;
     use stable_coin_project::traits::managing::*;
 
     use ink_lang::codegen::EmitEvent;
@@ -19,14 +20,16 @@ pub mod governance_token {
     const MINTER: RoleType = ink_lang::selector_id!("MINTER");
     const BURNER: RoleType = ink_lang::selector_id!("BURNER");
 
-    const DECIMALS: u128 = 1000000; //10^6
-    const INIT_SUP: u128 = 10000000; //10 * 10^6
+    const GDECIMALS: u128 = 10_u128.pow(6);
+    const SDECIMALS: u128 = 10_u128.pow(6);
+    const INIT_SUP: u128 = 10_u128.pow(7); //10 * 10^6
 
     #[ink(storage)]
     #[derive(
         Default,
         SpreadAllocate,
         OwnableStorage,
+        PausableStorage,
         PSP22Storage,
         PSP22MetadataStorage,
         AccessControlStorage,
@@ -38,6 +41,8 @@ pub mod governance_token {
         metadata: PSP22MetadataData,
         #[OwnableStorageField]
         ownable: OwnableData,
+        #[PausableStorageField]
+        pausable: PausableData,
         #[AccessControlStorageField]
         access: AccessControlData,
 
@@ -97,6 +102,32 @@ pub mod governance_token {
         }
     }
 
+    impl Pausing for GPSP22Contract {}
+
+    impl Pausable for GPSP22Contract {}
+
+    #[ink(event)]
+    pub struct Paused {
+        #[ink(topic)]
+        by: Option<AccountId>,
+    }
+    #[ink(event)]
+    pub struct Unpaused {
+        #[ink(topic)]
+        by: Option<AccountId>,
+    }
+    impl PausableInternal for GPSP22Contract {
+        /// User must override this method in their contract.
+        fn _emit_paused_event(&self, _account: AccountId) {
+            self.env().emit_event(Paused { by: Some(_account) });
+        }
+
+        /// User must override this method in their contract.
+        fn _emit_unpaused_event(&self, _account: AccountId) {
+            self.env().emit_event(Unpaused { by: Some(_account) });
+        }
+    }
+
     impl Managing for GPSP22Contract {}
 
     impl PSP22 for GPSP22Contract {}
@@ -106,8 +137,10 @@ pub mod governance_token {
     impl PSP22Mintable for GPSP22Contract {
         #[ink(message)]
         #[modifiers(only_role(MINTER))]
+        #[modifiers(when_not_paused)]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            let amount_to_mint = amount * INIT_SUP / (2 * self.total_minted_amount);
+            let amount_to_mint =
+                amount * GDECIMALS / SDECIMALS * INIT_SUP / (2 * self.total_minted_amount);
             self.total_minted_amount += amount_to_mint;
             self._mint(account, amount)
         }
@@ -117,10 +150,8 @@ pub mod governance_token {
         #[ink(message)]
         #[modifiers(only_role(BURNER))]
         fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            if self.env().caller() != account {
-                return Err(PSP22Error::Custom("BURN".to_string()));
-            }
-            self._burn_from(account, amount);
+            self._burn_from(account, amount)?;
+            Ok(())
         }
     }
 

@@ -7,13 +7,15 @@ pub mod stable_coin {
     use brush::{
         contracts::access_control::*,
         contracts::ownable::*,
+        contracts::pausable::*,
         contracts::psp22::extensions::burnable::*,
         contracts::psp22::extensions::metadata::*,
         contracts::psp22::extensions::mintable::*,
         modifiers,
         traits::{AccountIdExt, Flush},
     };
-    use stable_coin_project::impls::profit_generating::*;
+    use stable_coin_project::impls::pausing::*;
+    use stable_coin_project::impls::shares_profit_generating::*;
     use stable_coin_project::traits::managing::*;
     use stable_coin_project::traits::psp22_rated::*;
 
@@ -31,23 +33,26 @@ pub mod stable_coin {
     #[derive(
         Default,
         OwnableStorage,
+        PausableStorage,
         SpreadAllocate,
         PSP22Storage,
         PSP22MetadataStorage,
         AccessControlStorage,
-        PGeneratingStorage,
+        SPGeneratingStorage,
     )]
     pub struct StableCoinContract {
         #[OwnableStorageField]
         ownable: OwnableData,
+        #[PausableStorageField]
+        pause: PausableData,
         #[AccessControlStorageField]
         access: AccessControlData,
         #[PSP22MetadataStorageField]
         metadata: PSP22MetadataData,
         #[PSP22StorageField]
         psp22: PSP22Data,
-        #[PGeneratingStorageField]
-        generate: PGeneratingData,
+        #[SPGeneratingStorageField]
+        generate: SPGeneratingData,
 
         // immutables
 
@@ -128,9 +133,26 @@ pub mod stable_coin {
 
     impl Managing for StableCoinContract {}
 
+    impl Pausing for StableCoinContract {}
+
+    impl Pausable for StableCoinContract {}
+
+    impl PausableInternal for StableCoinContract {
+        /// User must override this method in their contract.
+        fn _emit_paused_event(&self, _account: AccountId) {
+            self.env().emit_event(Paused { by: Some(_account) });
+        }
+
+        /// User must override this method in their contract.
+        fn _emit_unpaused_event(&self, _account: AccountId) {
+            self.env().emit_event(Unpaused { by: Some(_account) });
+        }
+    }
+
     impl PSP22Mintable for StableCoinContract {
         #[ink(message)]
         #[modifiers(only_role(MINTER))]
+        #[modifiers(when_not_paused)]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
             self._mint(account, amount)
         }
@@ -252,7 +274,7 @@ pub mod stable_coin {
             } else {
                 let tax = self._calculate_tax(to, amount, tax_e6);
                 self._increase_balance(to, amount - tax, current_denominator_e12);
-                self._add_profit(tax);
+                self._add_profit_and_increase_shares_minting_allowance(tax, to);
             }
             // self._after_token_transfer(Some(&account), None, &amount)?;
             self._emit_transfer_event(Some(from), Some(to), amount);
@@ -412,7 +434,7 @@ pub mod stable_coin {
                     self.psp22
                         .balances
                         .insert(&account, &(unupdated_balance - to_substract));
-                    self._add_profit(to_substract);
+                    self._add_profit_and_increase_shares_minting_allowance(to_substract, account);
                     self.rated_supply -= to_substract;
                     // positive interest rates
                 } else if current_denominator_e12 < applied_denominator_e12 {
@@ -444,7 +466,7 @@ pub mod stable_coin {
         //             let to_substract = unupdated_balance * denominator_difference_e12
         //                 / current_denominator_e12
         //                 + 1; //round up
-        //             self._add_profit(to_substract);
+        //             self._add_profit_and_increase_shares_minting_allowance(to_substract, account);
         //             self.rated_supply = self.rated_supply - to_substract;
         //             // positive interest rates
         //         } else if current_denominator_e12 < applied_denominator_e12 {
@@ -481,7 +503,7 @@ pub mod stable_coin {
                     self.psp22
                         .balances
                         .insert(&account, &(unupdated_balance - to_substract + amount));
-                    self._add_profit(to_substract);
+                    self._add_profit_and_increase_shares_minting_allowance(to_substract, account);
                     self.rated_supply = self.rated_supply - to_substract + amount;
                     // positive interest rates
                 } else if current_denominator_e12 < applied_denominator_e12 {
@@ -535,7 +557,7 @@ pub mod stable_coin {
                     self.psp22
                         .balances
                         .insert(&account, &(updated_balance - amount));
-                    self._add_profit(to_substract);
+                    self._add_profit_and_increase_shares_minting_allowance(to_substract, account);
                     self.rated_supply = self.rated_supply - to_substract - amount;
                     // positive interest rates
                 } else if current_denominator_e12 < applied_denominator_e12 {
@@ -630,6 +652,18 @@ pub mod stable_coin {
     //
     // EVENT DEFINITIONS
     //
+
+    #[ink(event)]
+    pub struct Paused {
+        #[ink(topic)]
+        by: Option<AccountId>,
+    }
+    #[ink(event)]
+    pub struct Unpaused {
+        #[ink(topic)]
+        by: Option<AccountId>,
+    }
+
     #[ink(event)]
     pub struct Transfer {
         #[ink(topic)]

@@ -8,16 +8,16 @@ use brush::{
 
 use crate::traits::collateralling::*;
 use crate::traits::emitting::*;
-use crate::traits::profit_generating::*;
+use crate::traits::shares_profit_generating::*;
 
 /// Combination of all traits of the contract to simplify calls to the contract
 #[brush::wrapper]
 pub type VaultContractRef =
-    dyn Vault + Ownable + Pausable + Collateralling + Emitting + PGenerating;
+    dyn Vault + Ownable + Pausable + Collateralling + Emitting + SPGenerating;
 
 #[brush::trait_definition]
 pub trait VaultContractCheck:
-    Vault + Ownable + Pausable + Collateralling + Emitting + PGenerating
+    Vault + Ownable + Pausable + Collateralling + Emitting + SPGenerating
 {
 }
 
@@ -72,7 +72,7 @@ pub trait VaultInternal {
     fn _get_debt_ceiling(&self, vault_id: u128) -> Balance;
     fn _collateral_value_e6(&self, collateral: Balance) -> u128;
     fn _vault_collateral_value_e6(&self, value_id: u128) -> u128;
-    fn _update_vault_debt(&mut self, vault_id: &u128) -> Balance;
+    fn _update_vault_debt(&mut self, vault_id: u128) -> Balance;
     fn _update_current_interest_coefficient_e12(&mut self) -> u128;
     fn _get_current_interest_coefficient_e12(&self) -> u128;
     fn _get_debt_by_id(&self, vault_id: &u128) -> Balance;
