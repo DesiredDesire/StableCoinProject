@@ -17,9 +17,12 @@ use ink_storage::traits::StorageLayout;
 /// define the struct with the data that our smart contract will be using
 /// this will isolate the logic of our smart contract from its storage
 pub struct MeasuringData {
-    pub oracle_address: AccountId,
+    // mutables_internal
     pub stability_measure: u8,
     pub measurement_timestamp: Timestamp,
+
+    // mutables_external
+    pub oracle_address: AccountId,
 }
 
 declare_storage_trait!(MeasuringStorage, MeasuringData);

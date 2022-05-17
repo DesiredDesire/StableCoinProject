@@ -49,9 +49,10 @@ pub mod vault {
         #[PGeneratingStorageField]
         generate: PGeneratingData,
 
-        pub oracle_address: AccountId,
-
+        // immutables
         pub maximum_minimum_collateral_coefficient_e6: u128,
+
+        // mutables_internal
         pub collateral_by_id: Mapping<u128, Balance>,
         pub debt_by_id: Mapping<u128, Balance>,
         pub total_debt: Balance,
@@ -61,13 +62,16 @@ pub mod vault {
         pub last_interest_coefficient_by_id_e12: Mapping<u128, u128>, // the last interest coefficient (acumulated interest) used for vault with id
         pub last_interest_coefficient_timestamp: Timestamp, // last block number when current_interest_coefficient_e12 was updated
 
-        pub current_interest_rate_e12: i128, // interest_rate_step_value_e12 * current_interest_step( which is stored in vault_controller)
-        pub current_minimum_collateral_coefficient_e6: u128, // maximum_minimum_collaterall - collateral_step_value * current_collateral_step (shich is stored in vault_controller)
-
+        // mutables_external
+        pub oracle_address: AccountId,
         pub controller_address: AccountId, // controlling_contract
 
+        //// vault parameters
+        pub current_interest_rate_e12: i128, // interest_rate_step_value_e12 * current_interest_step( which is stored in vault_controller)
         pub interest_rate_stap_value_e12: i128,
         pub collateral_step_value_e6: u128,
+
+        pub current_minimum_collateral_coefficient_e6: u128, // maximum_minimum_collaterall - collateral_step_value * current_collateral_step (shich is stored in vault_controller)
     }
     impl Ownable for VaultContract {} // owner can pause contract
     impl Pausable for VaultContract {} // when paused borrowing is imposible
