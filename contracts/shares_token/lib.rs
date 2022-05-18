@@ -164,7 +164,7 @@ pub mod shares_token {
             let amount_to_mint = amount * SHARES_DECIMALS / STABLE_DECIMALS * INIT_SUP
                 / (2 * self.total_minted_amount);
             self.total_minted_amount += amount_to_mint;
-            self._mint(account, amount)
+            self._mint(account, amount_to_mint)
         }
     }
 
