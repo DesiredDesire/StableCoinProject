@@ -21,6 +21,7 @@ impl<T: MeasuringStorage + PausableStorage + OwnableStorage> Measuring for T {
         let azero_usd_price_e6 = OraclingRef::get_azero_usd_price_e6(&oracle_address);
         let azero_ausd_price_e6 = OraclingRef::get_azero_ausd_price_e6(&oracle_address);
         let ausd_usd_price_e6 = azero_usd_price_e6 * E6 / azero_ausd_price_e6;
+        MeasuringStorage::get_mut(self).ausd_usd_price_e6 = ausd_usd_price_e6;
         let last_measurement_timestamp = MeasuringStorage::get(self).measurement_timestamp;
         let current_timestamp = Self::env().block_timestamp();
         let time_passed = current_timestamp - last_measurement_timestamp;
@@ -44,6 +45,10 @@ impl<T: MeasuringStorage + PausableStorage + OwnableStorage> Measuring for T {
 
     default fn get_stability_measure_parameter(&self) -> u8 {
         MeasuringStorage::get(self).stability_measure
+    }
+
+    default fn get_ausd_usd_price_e6(&self) -> u128 {
+        MeasuringStorage::get(self).ausd_usd_price_e6
     }
 
     #[modifiers(only_owner)]

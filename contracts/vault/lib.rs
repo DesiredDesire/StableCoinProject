@@ -294,7 +294,6 @@ pub mod vault {
             ink_env::debug_println!("borrow_token START");
             ink_env::debug_println!("amount: {}", amount);
             ink_env::debug_println!("debt: {}", self._get_debt_by_id(&vault_id));
-
             let vault_owner: AccountId = self.owner_of(Id::U128(vault_id)).unwrap_or_default();
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
@@ -309,12 +308,14 @@ pub mod vault {
 
             // increase debt and borrow tokens
             self.debt_by_id.insert(&vault_id, &(debt + amount));
+            PSP22RatedRef::add_account_debt(&self.emit.emited_token_address, vault_owner, amount)?;
+
             self.total_debt += amount;
             ink_env::debug_println!("amount: {}", amount);
             self._mint_emited_token(vault_owner, amount)?;
 
             //event
-            self._emit_borrow_event(vault_id, debt + amount);
+            self._emit_borrow_event(vault_id, amount);
             Ok(())
         }
 
@@ -329,17 +330,27 @@ pub mod vault {
             if amount >= debt {
                 self._burn_emited_token(vault_owner, debt)?;
                 self.debt_by_id.insert(&vault_id, &(0));
+                PSP22RatedRef::sub_account_debt(
+                    &self.emit.emited_token_address,
+                    vault_owner,
+                    debt,
+                )?;
                 self.total_debt -= debt;
-                self._emit_pay_back_event(vault_id, 0);
+                self._emit_pay_back_event(vault_id, debt);
             } else {
                 self._burn_emited_token(vault_owner, amount)?;
                 self.debt_by_id.insert(&vault_id, &(debt - amount));
+                PSP22RatedRef::sub_account_debt(
+                    &self.emit.emited_token_address,
+                    vault_owner,
+                    amount,
+                )?;
                 self.total_debt -= amount;
-                self._emit_pay_back_event(vault_id, debt - amount);
+                self._emit_pay_back_event(vault_id, amount);
             }
             Ok(())
         }
-        // if vault has not enough collateral, callers pays back some debt than transfer vault to caller
+        // if vault has not enough collateral, callers pays back whole debt
         #[ink(message)]
         fn buy_risky_vault(&mut self, vault_id: u128) -> Result<(), VaultError> {
             let caller = self.env().caller();
@@ -353,10 +364,10 @@ pub mod vault {
             }
 
             // regulating vault so it is not undercollaterized
-            let minimum_to_pay = (debt - debt_ceiling) + 1;
             self._burn_emited_token(caller, minimum_to_pay)?;
-            self.debt_by_id.insert(&vault_id, &(debt - minimum_to_pay));
-            self.total_debt -= minimum_to_pay;
+            self.debt_by_id.insert(&vault_id, &(0));
+            PSP22RatedRef::sub_account_debt(&self.emit.emited_token_address, vault_owner, debt)?;
+            self.total_debt -= debt;
 
             // transferting PSP34 ownership
             self._remove_token(&vault_owner, &Id::U128(vault_id))?;
@@ -370,7 +381,7 @@ pub mod vault {
             self._add_token(&caller, &Id::U128(vault_id))?;
 
             // events
-            self._emit_pay_back_event(vault_id, debt - minimum_to_pay);
+            self._emit_pay_back_event(vault_id, debt);
             self._emit_transfer_event(Some(vault_owner), Some(caller), Id::U128(vault_id));
 
             Ok(())
@@ -464,13 +475,13 @@ pub mod vault {
     pub struct Borrow {
         #[ink(topic)]
         vault_id: u128,
-        current_debt: Balance,
+        borrowed: Balance,
     }
     #[ink(event)]
     pub struct PayBack {
         #[ink(topic)]
         vault_id: u128,
-        current_debt: Balance,
+        pay_backed: Balance,
     }
 
     impl VaultInternal for VaultContract {
@@ -488,17 +499,17 @@ pub mod vault {
             });
         }
 
-        fn _emit_borrow_event(&self, _vault_id: u128, _current_debt: Balance) {
+        fn _emit_borrow_event(&self, _vault_id: u128, _borrowed: Balance) {
             self.env().emit_event(Borrow {
                 vault_id: _vault_id,
-                current_debt: _current_debt,
+                borrowed: _borrowed,
             });
         }
 
-        fn _emit_pay_back_event(&self, _vault_id: u128, _current_debt: Balance) {
+        fn _emit_pay_back_event(&self, _vault_id: u128, _pay_backed: Balance) {
             self.env().emit_event(PayBack {
                 vault_id: _vault_id,
-                current_debt: _current_debt,
+                pay_backed: _pay_backed,
             });
         }
 
@@ -547,14 +558,24 @@ pub mod vault {
                 updated_debt += 1; // round up
             }
             ink_env::debug_println!("updated_debt: {}", updated_debt);
+            let vault_owner = self._owner_of(&Id::U128(vault_id)).unwrap_or_default(); //there will always be non default owner as owner must be caller. it is chacked before each _update_vault call
             if updated_debt > debt {
-                let vault_owner = self._owner_of(&Id::U128(vault_id)).unwrap_or_default(); //there will always be non default owner as owner must be caller. it is chacked before each _update_vault call
                 self._add_profit_and_increase_shares_minting_allowance(
                     updated_debt - debt,
                     vault_owner,
                 );
+                PSP22RatedRef::add_account_debt(
+                    &self.emit.emited_token_address,
+                    vault_owner,
+                    updated_debt - debt,
+                )?;
             } else if updated_debt < debt {
                 self._sub_profit(debt - updated_debt);
+                PSP22RatedRef::sub_account_debt(
+                    &self.emit.emited_token_address,
+                    vault_owner,
+                    debt - updated_debt,
+                )?;
             }
             //TODO calculate share toekn rewards and mint
             self.debt_by_id.insert(&vault_id, &updated_debt);

@@ -19,6 +19,7 @@ use ink_storage::traits::StorageLayout;
 pub struct MeasuringData {
     // mutables_internal
     pub stability_measure: u8,
+    pub ausd_usd_price_e6: u128,
     pub measurement_timestamp: Timestamp,
 
     // mutables_external

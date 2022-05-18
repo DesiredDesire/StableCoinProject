@@ -17,6 +17,7 @@ pub trait SControlling {
 
 pub trait SControllingInternal {
     fn _stability_measure_parameter_to_interest_rate(&self, state_parameter: u8) -> i128;
+    fn _ausd_usd_price_e6_to_tax_e6(&self, ausd_usd_price_e6: u128) -> u128;
 }
 
 /// Enum of errors raised by our lending smart contract

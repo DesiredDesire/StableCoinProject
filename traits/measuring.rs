@@ -17,6 +17,9 @@ pub trait Measuring {
     fn get_stability_measure_parameter(&self) -> u8; //(stability_measure_parameter: u8, block_timestamp: u32)
 
     #[ink(message)]
+    fn get_ausd_usd_price_e6(&self) -> u128;
+
+    #[ink(message)]
     fn set_oracle_address(&mut self, new_oracle_address: AccountId) -> Result<(), MeasuringError>;
 
     #[ink(message)]
