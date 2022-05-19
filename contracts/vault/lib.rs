@@ -18,6 +18,7 @@ pub mod vault {
     use stable_coin_project::impls::pausing::*;
     use stable_coin_project::impls::shares_profit_generating::*;
     use stable_coin_project::traits::oracling::OraclingRef;
+    use stable_coin_project::traits::psp22_rated::*;
     use stable_coin_project::traits::vault::*;
 
     // const U128MAX: u128 = 340282366920938463463374607431768211455;
@@ -263,7 +264,7 @@ pub mod vault {
                 "check_undercollateralize debt {}",
                 self._get_debt_by_id(&vault_id)
             );
-            let vault_debt = self._update_vault_debt(vault_id);
+            let vault_debt = self._update_vault_debt(vault_id)?;
             let collateral_after = vault_collateral - amount;
             ink_env::debug_println!("check_undercollateralize3 {}", vault_debt);
             if vault_debt * self.current_minimum_collateral_coefficient_e6
@@ -301,7 +302,7 @@ pub mod vault {
 
             // check if after borrow vault is not undercollaterized
             let debt_ceiling: Balance = self._get_debt_ceiling(vault_id);
-            let debt = self._update_vault_debt(vault_id);
+            let debt = self._update_vault_debt(vault_id)?;
             if debt + amount > debt_ceiling {
                 return Err(VaultError::CollateralBelowMinimum);
             }
@@ -326,7 +327,7 @@ pub mod vault {
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
             }
-            let debt = self._update_vault_debt(vault_id);
+            let debt = self._update_vault_debt(vault_id)?;
             if amount >= debt {
                 self._burn_emited_token(vault_owner, debt)?;
                 self.debt_by_id.insert(&vault_id, &(0));
@@ -358,13 +359,13 @@ pub mod vault {
 
             //check if debt_ceiling >= debt, if it is return, else continiue and buy risky vault
             let debt_ceiling: Balance = self._get_debt_ceiling(vault_id);
-            let debt = self._update_vault_debt(vault_id);
+            let debt = self._update_vault_debt(vault_id)?;
             if debt_ceiling >= debt {
                 return Err(VaultError::CollateralAboveMinimum);
             }
 
             // regulating vault so it is not undercollaterized
-            self._burn_emited_token(caller, minimum_to_pay)?;
+            self._burn_emited_token(caller, debt)?;
             self.debt_by_id.insert(&vault_id, &(0));
             PSP22RatedRef::sub_account_debt(&self.emit.emited_token_address, vault_owner, debt)?;
             self.total_debt -= debt;
@@ -536,7 +537,7 @@ pub mod vault {
         }
 
         // updates current interest coefficient, updates vaults debt and increments stored interest
-        fn _update_vault_debt(&mut self, vault_id: u128) -> Balance {
+        fn _update_vault_debt(&mut self, vault_id: u128) -> Result<Balance, VaultError> {
             // get state
             let current_interest_coefficient_e12 = self._update_current_interest_coefficient_e12();
             let last_interest_coefficient_e12 =
@@ -582,7 +583,7 @@ pub mod vault {
             self.last_interest_coefficient_by_id_e12
                 .insert(&vault_id, &current_interest_coefficient_e12);
 
-            updated_debt
+            Ok(updated_debt)
         }
 
         // calculates, updates and returns current interest coefficient
