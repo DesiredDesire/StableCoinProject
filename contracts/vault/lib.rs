@@ -18,7 +18,7 @@ pub mod vault {
     use stable_coin_project::impls::pausing::*;
     use stable_coin_project::impls::shares_profit_generating::*;
     use stable_coin_project::traits::oracling::OraclingRef;
-    use stable_coin_project::traits::psp22_rated::PSP22RatedRef;
+    use stable_coin_project::traits::psp22_rated::*;
     use stable_coin_project::traits::vault::*;
 
     // const U128MAX: u128 = 340282366920938463463374607431768211455;
