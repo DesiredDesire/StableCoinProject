@@ -54,10 +54,10 @@ pub mod stable_coin {
         pause: PausableData,
         #[AccessControlStorageField]
         access: AccessControlData,
-        #[PSP22MetadataStorageField]
-        metadata: PSP22MetadataData,
         #[PSP22StorageField]
         psp22: PSP22Data,
+        #[PSP22MetadataStorageField]
+        metadata: PSP22MetadataData,
         #[SPGeneratingStorageField]
         spgenerate: SPGeneratingData,
 

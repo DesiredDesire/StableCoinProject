@@ -1,5 +1,4 @@
 pub mod collateralling;
-pub mod eating;
 pub mod emitting;
 pub mod managing;
 pub mod measuring;

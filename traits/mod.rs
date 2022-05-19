@@ -1,16 +1,12 @@
 pub mod collateralling;
-pub mod eating;
 pub mod emitting;
-pub mod feeding;
 pub mod managing;
 pub mod measuring;
 pub mod oracling;
 pub mod pausing;
-pub mod price_feeding;
 pub mod psp22_rated;
 pub mod shares_profit_controlling;
 pub mod shares_profit_generating;
 pub mod stable_controlling;
 pub mod vault;
 pub mod vault_controlling;
-pub mod vault_eating;

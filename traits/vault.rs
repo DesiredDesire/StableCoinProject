@@ -24,6 +24,7 @@ pub trait VaultContractCheck:
 #[brush::wrapper]
 pub type VaultRef = dyn Vault + VaultView;
 
+//
 #[brush::trait_definition]
 pub trait Vault {
     #[ink(message)]

@@ -3,7 +3,6 @@ pub use crate::traits::measuring::*;
 pub use crate::traits::oracling::*;
 pub use crate::traits::psp22_rated::*;
 use brush::contracts::ownable::*;
-use brush::contracts::pausable::*;
 use brush::modifiers;
 use brush::traits::AccountId;
 use brush::traits::Timestamp;
@@ -14,8 +13,8 @@ const SECOND: Timestamp = 1;
 const MINUTE: Timestamp = 60 * SECOND;
 const HOUR: Timestamp = 60 * MINUTE;
 
-impl<T: MeasuringStorage + PausableStorage + OwnableStorage> Measuring for T {
-    #[brush::modifiers(when_not_paused)]
+impl<T: MeasuringStorage + OwnableStorage> Measuring for T {
+    // #[brush::modifiers(when_not_paused)] // TODO think about it
     default fn update_stability_measure_parameter(&mut self) -> Result<u8, MeasuringError> {
         let oracle_address = MeasuringStorage::get(self).oracle_address;
         let azero_usd_price_e6 = OraclingRef::get_azero_usd_price_e6(&oracle_address);
