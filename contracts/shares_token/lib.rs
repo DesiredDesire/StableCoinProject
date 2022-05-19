@@ -2,13 +2,14 @@
 #![feature(min_specialization)] //false positive - without this attribute contract does not compile
 
 #[brush::contract]
-pub mod psp22_emitable {
+pub mod shares_token {
 
     use brush::{
-        contracts::access_control::*, contracts::ownable::*,
+        contracts::access_control::*, contracts::ownable::*, contracts::pausable::*,
         contracts::psp22::extensions::burnable::*, contracts::psp22::extensions::metadata::*,
         contracts::psp22::extensions::mintable::*, modifiers,
     };
+    use stable_coin_project::impls::pausing::*;
     use stable_coin_project::traits::managing::*;
 
     use ink_lang::codegen::EmitEvent;
@@ -19,29 +20,60 @@ pub mod psp22_emitable {
     const MINTER: RoleType = ink_lang::selector_id!("MINTER");
     const BURNER: RoleType = ink_lang::selector_id!("BURNER");
 
+    const SHARES_DECIMALS: u128 = 10_u128.pow(6);
+    const STABLE_DECIMALS: u128 = 10_u128.pow(6);
+    const INIT_SUP: u128 = 10_u128.pow(7); //10 * 10^6
+
     #[ink(storage)]
     #[derive(
         Default,
-        OwnableStorage,
         SpreadAllocate,
+        OwnableStorage,
+        PausableStorage,
         PSP22Storage,
         PSP22MetadataStorage,
         AccessControlStorage,
     )]
-    pub struct PSP22EmitableContract {
+    pub struct SharesContract {
         #[PSP22StorageField]
         psp22: PSP22Data,
         #[PSP22MetadataStorageField]
         metadata: PSP22MetadataData,
         #[OwnableStorageField]
         ownable: OwnableData,
+        #[PausableStorageField]
+        pausable: PausableData,
         #[AccessControlStorageField]
         access: AccessControlData,
+
+        pub total_minted_amount: Balance,
     }
 
-    impl Ownable for PSP22EmitableContract {}
+    impl SharesContract {
+        #[ink(constructor)]
+        pub fn new(
+            name: Option<String>,
+            symbol: Option<String>,
+            decimal: u8,
+            owner: AccountId,
+        ) -> Self {
+            ink_lang::codegen::initialize_contract(|instance: &mut Self| {
+                // metadata
+                instance.metadata.name = name;
+                instance.metadata.symbol = symbol;
+                instance.metadata.decimals = decimal;
+                // ownable & access_control
+                instance._init_with_owner(owner);
+                instance._init_with_admin(owner);
+                instance.total_minted_amount = INIT_SUP * SHARES_DECIMALS;
+                instance._mint(owner, INIT_SUP * SHARES_DECIMALS);
+            })
+        }
+    }
 
-    impl OwnableInternal for PSP22EmitableContract {
+    impl Ownable for SharesContract {}
+
+    impl OwnableInternal for SharesContract {
         fn _emit_ownership_transferred_event(
             &self,
             _previous_owner: Option<AccountId>,
@@ -54,9 +86,9 @@ pub mod psp22_emitable {
         }
     }
 
-    impl AccessControl for PSP22EmitableContract {}
+    impl AccessControl for SharesContract {}
 
-    impl AccessControlInternal for PSP22EmitableContract {
+    impl AccessControlInternal for SharesContract {
         fn _emit_role_admin_changed(
             &mut self,
             _role: RoleType,
@@ -92,56 +124,59 @@ pub mod psp22_emitable {
         }
     }
 
-    impl PSP22 for PSP22EmitableContract {}
+    impl Pausing for SharesContract {}
 
-    impl PSP22Metadata for PSP22EmitableContract {}
+    impl Pausable for SharesContract {}
 
-    impl PSP22Mintable for PSP22EmitableContract {
-        #[ink(message)]
-        #[modifiers(only_role(MINTER))]
-        fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            self._mint(account, amount)
+    #[ink(event)]
+    pub struct Paused {
+        #[ink(topic)]
+        by: Option<AccountId>,
+    }
+    #[ink(event)]
+    pub struct Unpaused {
+        #[ink(topic)]
+        by: Option<AccountId>,
+    }
+    impl PausableInternal for SharesContract {
+        /// User must override this method in their contract.
+        fn _emit_paused_event(&self, _account: AccountId) {
+            self.env().emit_event(Paused { by: Some(_account) });
+        }
+
+        /// User must override this method in their contract.
+        fn _emit_unpaused_event(&self, _account: AccountId) {
+            self.env().emit_event(Unpaused { by: Some(_account) });
         }
     }
 
-    impl PSP22Burnable for PSP22EmitableContract {
+    impl Managing for SharesContract {}
+
+    impl PSP22 for SharesContract {}
+
+    impl PSP22Metadata for SharesContract {}
+
+    impl PSP22Mintable for SharesContract {
+        #[ink(message)]
+        #[modifiers(only_role(MINTER))]
+        #[modifiers(when_not_paused)]
+        fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
+            let amount_to_mint = amount * SHARES_DECIMALS / STABLE_DECIMALS * INIT_SUP
+                / (2 * self.total_minted_amount);
+            self.total_minted_amount += amount_to_mint;
+            self._mint(account, amount_to_mint)
+        }
+    }
+
+    impl PSP22Burnable for SharesContract {
         #[ink(message)]
         #[modifiers(only_role(BURNER))]
         fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            self._burn_from(account, amount)
+            self._burn_from(account, amount)?;
+            Ok(())
         }
     }
 
-    impl Managing for PSP22EmitableContract {}
-
-    impl PSP22EmitableContract {
-        #[ink(constructor)]
-        pub fn new(
-            name: Option<String>,
-            symbol: Option<String>,
-            decimal: u8,
-            owner: AccountId,
-        ) -> Self {
-            ink_lang::codegen::initialize_contract(|instance: &mut Self| {
-                // metadata
-                instance.metadata.name = name;
-                instance.metadata.symbol = symbol;
-                instance.metadata.decimals = decimal;
-                // ownable & access_control
-                instance._init_with_owner(owner);
-                instance._init_with_admin(owner);
-            })
-        }
-
-        #[ink(message)]
-        pub fn mint_any_caller(
-            &mut self,
-            account: AccountId,
-            amount: Balance,
-        ) -> Result<(), PSP22Error> {
-            self._mint(account, amount)
-        }
-    }
     // EVENT DEFINITIONS #[ink(event)]
     #[ink(event)]
     pub struct OwnershipTransferred {

@@ -1,19 +1,27 @@
 use super::measuring::*;
 use super::vault::*;
+use brush::contracts::traits::ownable::*;
 use brush::traits::AccountId;
 
 #[brush::wrapper]
-pub type VControllingContractRef = dyn VControlling;
+pub type VControllingContractRef = dyn VControlling + VControllingView + Ownable;
 
 #[brush::wrapper]
-pub type VControllingRef = dyn VControlling;
+pub type VControllingRef = dyn VControlling + VControllingView;
 
 #[brush::trait_definition]
 pub trait VControlling {
     #[ink(message)]
     fn control_vault(&mut self) -> Result<(), VControllingError>;
+}
+
+#[brush::trait_definition]
+pub trait VControllingView {
     #[ink(message)]
     fn get_vault_address(&self) -> AccountId;
+
+    #[ink(message)]
+    fn get_measurer_address(&self) -> AccountId;
 }
 
 pub trait VControllingInternal {

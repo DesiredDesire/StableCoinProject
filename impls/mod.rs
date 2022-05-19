@@ -1,9 +1,10 @@
 pub mod collateralling;
-pub mod eating;
 pub mod emitting;
 pub mod managing;
 pub mod measuring;
-pub mod minter;
 pub mod oracling;
+pub mod pausing;
+pub mod shares_profit_controlling;
+pub mod shares_profit_generating;
 pub mod stable_controlling;
 pub mod vault_controlling;

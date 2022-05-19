@@ -20,6 +20,8 @@ pub mod lending {
 
     impl VControlling for VControllerContract {}
 
+    impl VControllingView for VControllerContract {}
+
     impl VControllingInternal for VControllerContract {}
 
     impl VControllerContract {

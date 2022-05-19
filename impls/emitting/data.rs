@@ -17,7 +17,10 @@ use ink_storage::traits::StorageLayout;
 /// define the struct with the data that our smart contract will be using
 /// this will isolate the logic of our smart contract from its storage
 pub struct EmittingData {
+    // immutables
     pub emited_token_address: AccountId,
+
+    // mutables_internal
     pub emited_amount: Balance,
 }
 

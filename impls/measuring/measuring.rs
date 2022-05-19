@@ -1,9 +1,8 @@
 pub use super::data::*;
 pub use crate::traits::measuring::*;
 pub use crate::traits::oracling::*;
-pub use crate::traits::stable_coin::*;
+pub use crate::traits::psp22_rated::*;
 use brush::contracts::ownable::*;
-use brush::contracts::pausable::*;
 use brush::modifiers;
 use brush::traits::AccountId;
 use brush::traits::Timestamp;
@@ -14,13 +13,14 @@ const SECOND: Timestamp = 1;
 const MINUTE: Timestamp = 60 * SECOND;
 const HOUR: Timestamp = 60 * MINUTE;
 
-impl<T: MeasuringStorage + PausableStorage + OwnableStorage> Measuring for T {
-    #[brush::modifiers(when_not_paused)]
+impl<T: MeasuringStorage + OwnableStorage> Measuring for T {
+    // #[brush::modifiers(when_not_paused)] // TODO think about it
     default fn update_stability_measure_parameter(&mut self) -> Result<u8, MeasuringError> {
         let oracle_address = MeasuringStorage::get(self).oracle_address;
         let azero_usd_price_e6 = OraclingRef::get_azero_usd_price_e6(&oracle_address);
         let azero_ausd_price_e6 = OraclingRef::get_azero_ausd_price_e6(&oracle_address);
         let ausd_usd_price_e6 = azero_usd_price_e6 * E6 / azero_ausd_price_e6;
+        MeasuringStorage::get_mut(self).ausd_usd_price_e6 = ausd_usd_price_e6;
         let last_measurement_timestamp = MeasuringStorage::get(self).measurement_timestamp;
         let current_timestamp = Self::env().block_timestamp();
         let time_passed = current_timestamp - last_measurement_timestamp;
@@ -42,14 +42,24 @@ impl<T: MeasuringStorage + PausableStorage + OwnableStorage> Measuring for T {
         Ok(MeasuringStorage::get(self).stability_measure)
     }
 
-    default fn get_stability_measure_parameter(&self) -> u8 {
-        MeasuringStorage::get(self).stability_measure
-    }
-
     #[modifiers(only_owner)]
     fn set_oracle_address(&mut self, new_oracle_address: AccountId) -> Result<(), MeasuringError> {
         MeasuringStorage::get_mut(self).oracle_address = new_oracle_address;
         Ok(())
+    }
+}
+
+impl<T: MeasuringStorage> MeasuringView for T {
+    default fn get_stability_measure_parameter(&self) -> u8 {
+        MeasuringStorage::get(self).stability_measure
+    }
+
+    default fn get_ausd_usd_price_e6(&self) -> u128 {
+        MeasuringStorage::get(self).ausd_usd_price_e6
+    }
+
+    default fn get_measurement_timestamp(&self) -> Timestamp {
+        MeasuringStorage::get(self).measurement_timestamp
     }
 
     fn get_oracle_address(&self) -> AccountId {

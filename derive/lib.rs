@@ -4,7 +4,11 @@ extern crate proc_macro;
 
 use brush_derive::declare_derive_storage_trait;
 
-declare_derive_storage_trait!(derive_minter_storage, MinterStorage, MinterStorageField);
+declare_derive_storage_trait!(
+    derive_minting_storage,
+    SMintingStorage,
+    SMintingStorageField
+);
 declare_derive_storage_trait!(
     derive_collateralling_storage,
     CollaterallingStorage,
@@ -43,4 +47,22 @@ declare_derive_storage_trait!(
     derive_oracling_storage,
     OraclingStorage,
     OraclingStorageField
+);
+
+declare_derive_storage_trait!(
+    derive_shares_profit_controlling_storage,
+    SPControllingStorage,
+    SPControllingStorageField
+);
+
+declare_derive_storage_trait!(
+    derive_profit_generating_storage,
+    PGeneratingStorage,
+    PGeneratingStorageField
+);
+
+declare_derive_storage_trait!(
+    derive_shares_profit_generating_storage,
+    SPGeneratingStorage,
+    SPGeneratingStorageField
 );

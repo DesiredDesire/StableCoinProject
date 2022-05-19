@@ -4,33 +4,13 @@ use ink_env::CallFlags;
 use ink_prelude::vec::Vec;
 
 use brush::{
-    contracts::{ownable::*, traits::psp22::*},
-    modifiers,
+    contracts::traits::psp22::*,
     traits::{AccountId, Balance},
 };
 
-impl<T: CollaterallingStorage + OwnableStorage> Collateralling for T {
+impl<T: CollaterallingStorage> Collateralling for T {
     default fn collateral_amount(&self) -> Balance {
         CollaterallingStorage::get(self).collateral_amount
-    }
-
-    #[modifiers(only_owner)]
-    default fn rescue_psp22(
-        &mut self,
-        psp22_address: AccountId,
-        to: AccountId,
-        amount: Balance,
-    ) -> Result<(), CollaterallingError> {
-        if psp22_address != CollaterallingStorage::get(self).collateral_token_address {
-            PSP22Ref::transfer(&psp22_address, to, amount, Vec::<u8>::new())?;
-        } else {
-            if CollaterallingStorage::get(self).collateral_amount
-                <= PSP22Ref::balance_of(&psp22_address, Self::env().account_id()) - amount
-            {
-                PSP22Ref::transfer(&psp22_address, to, amount, Vec::<u8>::new())?;
-            }
-        }
-        Ok(())
     }
 
     default fn get_collateral_token_address(&self) -> AccountId {

@@ -21,9 +21,15 @@ impl<T: VControllingStorage> VControlling for T {
 
         Ok(())
     }
+}
 
+impl<T: VControllingStorage> VControllingView for T {
     default fn get_vault_address(&self) -> AccountId {
         VControllingStorage::get(self).vault_address
+    }
+
+    default fn get_measurer_address(&self) -> AccountId {
+        VControllingStorage::get(self).measurer_address
     }
 }
 

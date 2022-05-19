@@ -9,12 +9,12 @@ pub mod lending {
     use stable_coin_project::impls::measuring::*;
 
     #[ink(storage)]
-    #[derive(Default, SpreadAllocate, OwnableStorage, PausableStorage, MeasuringStorage)]
+    #[derive(Default, SpreadAllocate, OwnableStorage, MeasuringStorage)]
     pub struct MeasurerContract {
         #[OwnableStorageField]
         owner: OwnableData,
-        #[PausableStorageField]
-        pause: PausableData,
+        // #[PausableStorageField]
+        // pause: PausableData,
         #[MeasuringStorageField]
         measure: MeasuringData,
     }
@@ -22,6 +22,7 @@ pub mod lending {
     impl Ownable for MeasurerContract {}
 
     impl Measuring for MeasurerContract {}
+    impl MeasuringView for MeasurerContract {}
 
     impl MeasurerContract {
         /// constructor with name and symbol
