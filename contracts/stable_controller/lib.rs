@@ -20,6 +20,8 @@ pub mod lending {
 
     impl SControlling for SControllerContract {}
 
+    impl SControllingView for SControllerContract {}
+
     impl SControllingInternal for SControllerContract {}
 
     impl SControllerContract {

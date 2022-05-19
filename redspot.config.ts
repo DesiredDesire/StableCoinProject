@@ -73,7 +73,7 @@ const types = {
   },
 
   StableCoinProjectSPControllingSPControllingError: {
-    enum: {
+    _enum: {
       Generator: null,
       NoProfit: null,
       One: null,
@@ -85,7 +85,7 @@ const types = {
   },
 
   StableCoinProjectSPGeneratingSPGeneratingError: {
-    enum: {
+    _enum: {
       Controller: null,
       PausableError: 'ContractsErrorsPausablePausableError',
       OwnableError: 'ContractsErrorsOwnableOwnableError',
@@ -94,7 +94,7 @@ const types = {
   },
 
   StableCoinProjectStableControllerStableControllerError: {
-    enum: {
+    _enum: {
       CouldntFeed: null,
       OwnableError: 'ContractsErrorsOwnableOwnableError',
       MeasuringError: 'StableCoinProjectMeasuringMeasuringError',
@@ -103,10 +103,21 @@ const types = {
   },
 
   StableCoinProjectVaultControllerVaultControllerError: {
-    enum: {
+    _enum: {
       CouldntFeed: null,
       MeasuringError: 'StableCoinProjectMeasuringMeasuringError',
       VaultError: 'StableCoinProjectVaultVaultError',
+    },
+  },
+
+  StableCoinProjectSPControllingSPControllingError: {
+    _enum: {
+      Generator: null,
+      NoProfit: null,
+      One: null,
+      PSP22Error: 'ContractsErrorsPsp22Psp22Error',
+      OwnableError: 'ContractsErrorsOwnableOwnableError',
+      SPGeneratingError: 'StableCoinProjectSPGeneratingSPGeneratingError',
     },
   },
 
@@ -134,6 +145,7 @@ const types = {
     selectors: 'Vec<[u8; 4]>',
   },
 };
+
 export default {
   defaultNetwork: 'development',
   contract: {

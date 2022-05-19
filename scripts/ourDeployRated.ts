@@ -1,40 +1,64 @@
-///// WIP
-///// WIP
-///// WIP
 import { Signer } from 'redspot/types/provider';
-import { setupOracle, setupEmmitedToken, setupCollateralMock, setupMeasurer, setupVault, setupVaultController } from './ourHelpersOld';
+import {
+  deployOracle,
+  deployCollateralMock,
+  deployMeasurer,
+  deployShareToken,
+  setupStableCoinContract,
+  deployShareProfitController,
+  setupVaultContract,
+  setupSharesProfitControllerContract,
+} from './ourHelpers';
 import { consts } from './constants';
 import { fromSigner } from './helpers';
 
-export async function setupRatedSystem(owner: Signer) {
-  const ownerAddress = owner.address;
-  const { contract: oracleContract } = await setupOracle(ownerAddress);
-  const { contract: stableCoinContract } = await setupStableCoinToken(consts.STABLE_DECIMALS, ownerAddress);
-  const { contract: collateralTokenContract } = await setupCollateralMock(consts.COLLATERAL_DECIMALS, ownerAddress);
-  const { contract: measurerContract } = await setupMeasurer(oracleContract.address.toString(), ownerAddress);
-  const {
-    query,
-    defaultSigner: sender,
-    contract: vaultContract,
-  } = await setupVault(
-    oracleContract.address.toString(),
-    collateralTokenContract.address.toString(),
-    stableCoinContract.address.toString(),
-    0,
+const INIT_AZERO_USD_PRICE_E6 = 1200000;
+export async function deploySystem(owner: Signer) {
+  console.log(`delpoying with: ${owner.address}`);
+  const { contract: oracleContract } = await deployOracle(owner.address);
+  await fromSigner(oracleContract, owner.address).tx.feedAzeroUsdPriceE6(INIT_AZERO_USD_PRICE_E6);
+  const { contract: measurerContract } = await deployMeasurer(oracleContract.address.toString(), owner.address);
+  const { contract: sharesContract } = await deployShareToken(undefined, undefined, undefined, owner.address);
+  const stableSetupResults = await setupStableCoinContract(
+    undefined,
+    undefined,
+    undefined,
+    measurerContract,
+    sharesContract,
+    owner.address
+  );
+  const { contract: stableCoinContract } = stableSetupResults.stableCoin;
+  const { contract: stableControllerContract } = stableSetupResults.stableController;
+
+  const { contract: sharesProfitControllerContract } = await setupSharesProfitControllerContract(stableCoinContract, owner.address);
+
+  const { contract: collateralTokenContract } = await deployCollateralMock(consts.COLLATERAL_DECIMALS, owner.address);
+
+  const vaultSetupResults = await setupVaultContract(
+    oracleContract,
+    measurerContract,
+    sharesProfitControllerContract,
+    sharesContract,
+    collateralTokenContract,
+    stableCoinContract,
     2000000,
+    10000,
     0,
-    ownerAddress
-  );
-  const { contract: vaultControllerContract } = await setupVaultController(
-    measurerContract.address.toString(),
-    vaultContract.address.toString(),
-    ownerAddress
+    owner.address
   );
 
-  await fromSigner(vaultContract, owner.address).tx.setControllerAddress(vaultControllerContract.address);
-  await fromSigner(stableCoinContract, owner.address).tx.setupRole(consts.MINTER, vaultContract.address);
-  await fromSigner(stableCoinContract, owner.address).tx.setupRole(consts.BURNER, vaultContract.address);
-  await fromSigner(stableCoinContract, owner.address).tx.setupRole(consts.SETTER, owner.address);
+  const { contract: vaultContract } = vaultSetupResults.vault;
+  const { contract: vaultControllerContract } = vaultSetupResults.vaultController;
 
-  return { oracleContract, stableCoinContract, collateralTokenContract, measurerContract, vaultContract, vaultControllerContract };
+  return {
+    oracleContract,
+    measurerContract,
+    sharesContract,
+    sharesProfitControllerContract,
+    stableCoinContract,
+    stableControllerContract,
+    collateralTokenContract,
+    vaultContract,
+    vaultControllerContract,
+  };
 }

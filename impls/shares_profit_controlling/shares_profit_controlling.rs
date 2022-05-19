@@ -3,9 +3,8 @@ use brush::traits::AccountId;
 pub use super::data::*;
 pub use crate::traits::shares_profit_controlling::*;
 pub use crate::traits::shares_profit_generating::*;
-use brush::{contracts::ownable::*, contracts::traits::psp22::*, modifiers};
+use brush::{contracts::ownable::*, contracts::traits::psp22::extensions::mintable::*, modifiers};
 use ink_env::CallFlags;
-use ink_prelude::vec::Vec;
 
 const E6: u128 = 10_u128.pow(6);
 
@@ -34,27 +33,22 @@ impl<T: SPControllingStorage + OwnableStorage> SPControlling for T {
         SPControllingStorage::get_mut(self).total_profit = 0;
         let stable_coin_address: AccountId = SPControllingStorage::get(self).stable_coin_address;
         let treassuty_address: AccountId = SPControllingStorage::get(self).treassury_address;
+        let owner: AccountId = OwnableStorage::get(self).owner;
         let treassury_part_e6: u128 = SPControllingStorage::get(self).treassury_part_e6;
         let treassury_profit: u128 = profit as u128 * treassury_part_e6 / E6;
-        let owner: AccountId = OwnableStorage::get(self).owner;
-        PSP22Ref::transfer_builder(
-            &stable_coin_address,
-            treassuty_address,
-            treassury_profit,
-            Vec::<u8>::new(),
-        )
-        .call_flags(CallFlags::default().set_allow_reentry(true))
-        .fire()
-        .unwrap()?;
-        PSP22Ref::transfer_builder(
+        PSP22MintableRef::mint_builder(&stable_coin_address, treassuty_address, treassury_profit)
+            .call_flags(CallFlags::default().set_allow_reentry(true))
+            .fire()
+            .unwrap()?;
+        PSP22MintableRef::mint_builder(
             &stable_coin_address,
             owner,
             profit as u128 - treassury_profit,
-            Vec::<u8>::new(),
         )
         .call_flags(CallFlags::default().set_allow_reentry(true))
         .fire()
         .unwrap()?;
+        SPControllingStorage::get_mut(self).minted_amount += profit as u128;
         Ok(())
     }
 

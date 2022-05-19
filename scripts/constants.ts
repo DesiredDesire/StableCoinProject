@@ -6,6 +6,8 @@ export const consts = {
   MINTER: 4254773782,
   BURNER: 1711057910,
   SETTER: 793457621,
+  EMITTER: 3639053575,
+  VAULT: 2893303706,
 };
 
 export const Roles = {

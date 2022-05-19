@@ -12,7 +12,7 @@ impl<T: OwnableStorage + AccessControlStorage> Managing for T {
         &mut self,
         role: RoleType,
         new_admin: RoleType,
-    ) -> Result<(), ManagingError> {
+    ) -> Result<(), OwnableError> {
         self._set_role_admin(role, new_admin);
         Ok(())
     }
@@ -22,7 +22,7 @@ impl<T: OwnableStorage + AccessControlStorage> Managing for T {
         &mut self,
         role: RoleType,
         new_member: AccountId,
-    ) -> Result<(), ManagingError> {
+    ) -> Result<(), OwnableError> {
         self._setup_role(role, new_member);
         Ok(())
     }

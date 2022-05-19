@@ -74,6 +74,7 @@ pub mod vault {
         // mutables_external
         pub oracle_address: AccountId,
         pub controller_address: AccountId, // controlling_contract
+        pub liquidator_address: AccountId,
 
         //// vault parameters
         pub current_interest_rate_e12: i128, // interest_rate_step_value_e12 * current_interest_step( which is stored in vault_controller)
@@ -96,6 +97,7 @@ pub mod vault {
         pub fn new(
             oracle_address: AccountId,
             shares_token_address: AccountId,
+            shares_profit_controller_address: AccountId,
             collateral_token_address: AccountId,
             stable_token_address: AccountId,
             maximum_minimum_collateral_coefficient_e6: u128,
@@ -108,6 +110,8 @@ pub mod vault {
                 instance.collateral.collateral_token_address = collateral_token_address;
                 instance.emit.emited_token_address = stable_token_address;
                 instance.spgenerate.shares_token_address = shares_token_address;
+                instance.spgenerate.shares_profit_controller_address =
+                    shares_profit_controller_address;
                 instance.spgenerate.sharing_part_e6 = E6;
                 instance.current_interest_coefficient_e12 = E12;
                 instance.last_interest_coefficient_timestamp = instance.env().block_timestamp();
@@ -314,6 +318,9 @@ pub mod vault {
         // updates debt and pay back some debt
         #[ink(message)]
         fn pay_back_token(&mut self, vault_id: u128, amount: Balance) -> Result<(), VaultError> {
+            if self.env().caller() != self.liquidator_address {
+                return Err(VaultError::Liquidator);
+            }
             let vault_owner: AccountId = self.owner_of(Id::U128(vault_id)).unwrap_or_default();
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
@@ -410,11 +417,20 @@ pub mod vault {
             Ok(())
         }
 
-        //TODO move it
         #[ink(message)]
         #[modifiers(only_owner)]
         fn set_oracle_address(&mut self, new_oracle_address: AccountId) -> Result<(), VaultError> {
             self.oracle_address = new_oracle_address;
+            Ok(())
+        }
+
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        fn set_liquidator_address(
+            &mut self,
+            new_liquidator_address: AccountId,
+        ) -> Result<(), VaultError> {
+            self.liquidator_address = new_liquidator_address;
             Ok(())
         }
     }
@@ -455,6 +471,11 @@ pub mod vault {
         #[ink(message)]
         fn get_oracle_address(&self) -> AccountId {
             self.oracle_address
+        }
+
+        #[ink(message)]
+        fn get_liquidator_address(&self) -> AccountId {
+            self.liquidator_address
         }
     }
     impl VaultContractCheck for VaultContract {}

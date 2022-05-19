@@ -3,7 +3,6 @@ use brush::{
     traits::AccountId,
 };
 
-use super::emitting::EmittingError;
 use super::shares_profit_generating::SPGeneratingError;
 
 /// Combination of all traits of the contract to simplify calls to the contract
@@ -77,7 +76,6 @@ pub enum SPControllingError {
     One,
     PSP22Error(PSP22Error),
     OwnableError(OwnableError),
-    EmittingError(EmittingError),
     SPGeneratingError(SPGeneratingError),
 }
 
@@ -90,12 +88,6 @@ impl From<PSP22Error> for SPControllingError {
 impl From<OwnableError> for SPControllingError {
     fn from(error: OwnableError) -> Self {
         SPControllingError::OwnableError(error)
-    }
-}
-
-impl From<EmittingError> for SPControllingError {
-    fn from(error: EmittingError) -> Self {
-        SPControllingError::EmittingError(error)
     }
 }
 

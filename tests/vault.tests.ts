@@ -3,7 +3,7 @@ import { expect, fromSigner, setupContract } from '../scripts/helpers';
 import { consts } from '../scripts/constants';
 import { Signer } from 'redspot/types';
 import Contract from '@redspot/patract/contract';
-import { deploySystem } from '../scripts/ourDeploy';
+import { deploySystem } from '../scripts/ourDeployRated';
 const { getSigners, api } = network;
 
 const E6: bigint = 1000000n;
@@ -13,7 +13,7 @@ describe('Vault', () => {
   let users: Signer[];
   let owner: Signer;
   let oracleContract: Contract;
-  let stableTokenContract: Contract;
+  let stableCoinContract: Contract;
   let collateralTokenContract: Contract;
   let measurerContract: Contract;
   let vaultContract: Contract;
@@ -24,14 +24,14 @@ describe('Vault', () => {
     owner = users.shift() as Signer;
     const contracts = await deploySystem(owner);
     oracleContract = contracts.oracleContract;
-    stableTokenContract = contracts.stableTokenContract;
+    stableCoinContract = contracts.stableCoinContract;
     collateralTokenContract = contracts.collateralTokenContract;
     measurerContract = contracts.measurerContract;
     vaultContract = contracts.vaultContract;
     vaultControllerContract = contracts.vaultControllerContract;
   });
 
-  describe('vaults creation and destruction', async () => {
+  describe.only('vaults creation and destruction', async () => {
     it('owner creates a vault and mints an nft', async () => {
       await expect(fromSigner(vaultContract, owner.address).tx.createVault()).to.eventually.be.fulfilled;
       await expect(vaultContract.query.totalSupply()).to.have.output(1);
@@ -141,7 +141,7 @@ describe('Vault', () => {
 
       const debtCeiling = await BigInt((await vaultContract.query.getDebtCeiling(0)).output?.toString() as string);
       await expect(fromSigner(vaultContract, users[0].address).tx.borrowToken(0, debtCeiling)).to.eventually.be.fulfilled;
-      await expect(stableTokenContract.query.balanceOf(users[0].address)).to.have.output(debtCeiling);
+      await expect(stableCoinContract.query.balanceOf(users[0].address)).to.have.output(debtCeiling);
       await expect(vaultContract.query.getVaultDetails(0)).to.have.output([DEPOSITED_AMOUNT, debtCeiling]);
     });
 
@@ -150,7 +150,7 @@ describe('Vault', () => {
 
       const debtCeiling = await BigInt((await vaultContract.query.getDebtCeiling(0)).output?.toString() as string);
       await expect(fromSigner(vaultContract, users[0].address).tx.borrowToken(0, debtCeiling - 1n)).to.eventually.be.fulfilled;
-      await expect(stableTokenContract.query.balanceOf(users[0].address)).to.have.output(debtCeiling - 1n);
+      await expect(stableCoinContract.query.balanceOf(users[0].address)).to.have.output(debtCeiling - 1n);
       await expect(vaultContract.query.getVaultDetails(0)).to.have.output([DEPOSITED_AMOUNT, debtCeiling - 1n]);
     });
   });

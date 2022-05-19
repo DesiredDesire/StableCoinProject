@@ -23,7 +23,7 @@ pub struct SPGeneratingData {
     pub shares_minting_allowance: Mapping<AccountId, u128>,
 
     // mutables_external
-    pub profit_controller: AccountId,
+    pub shares_profit_controller_address: AccountId,
     pub sharing_part_e6: u128, // 1 USDA gives shareing_part_e6 /E6 allowance
 }
 

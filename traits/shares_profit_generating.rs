@@ -40,7 +40,7 @@ pub trait SPGeneratingView {
     fn get_generated_profit(&self) -> i128;
 
     #[ink(message)]
-    fn get_profit_controller_address(&self) -> AccountId;
+    fn get_shares_profit_controller_address(&self) -> AccountId;
 
     // shares
     #[ink(message)]

@@ -1,7 +1,10 @@
 // importing everything publicly from traits allows you to import every stuff related to lending
 // by one import
 pub use crate::traits::shares_profit_controlling::*;
-use brush::{declare_storage_trait, traits::AccountId};
+use brush::{
+    declare_storage_trait,
+    traits::{AccountId, Balance},
+};
 use ink_storage::{
     traits::{SpreadAllocate, SpreadLayout},
     Mapping,
@@ -22,6 +25,7 @@ pub struct SPControllingData {
 
     // mutables_internal;
     pub total_profit: i128,
+    pub minted_amount: Balance,
 
     // mutables_external
     pub is_generator: Mapping<AccountId, bool>,

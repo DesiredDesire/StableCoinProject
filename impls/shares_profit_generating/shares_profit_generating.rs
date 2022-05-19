@@ -15,7 +15,7 @@ impl<T: SPGeneratingStorage + OwnableStorage> SPGenerating for T {
         &mut self,
         new_sharing_part_e6: u128,
     ) -> Result<(), SPGeneratingError> {
-        if Self::env().caller() != SPGeneratingStorage::get(self).profit_controller {
+        if Self::env().caller() != SPGeneratingStorage::get(self).shares_profit_controller_address {
             return Err(SPGeneratingError::Controller);
         }
         SPGeneratingStorage::get_mut(self).sharing_part_e6 = new_sharing_part_e6;
@@ -24,7 +24,7 @@ impl<T: SPGeneratingStorage + OwnableStorage> SPGenerating for T {
 
     // profiting
     default fn give_profit(&mut self) -> Result<i128, SPGeneratingError> {
-        if Self::env().caller() != SPGeneratingStorage::get(self).profit_controller {
+        if Self::env().caller() != SPGeneratingStorage::get(self).shares_profit_controller_address {
             return Err(SPGeneratingError::Controller);
         }
         let income: i128 = SPGeneratingStorage::get(self).generated_profit;
@@ -37,7 +37,7 @@ impl<T: SPGeneratingStorage + OwnableStorage> SPGenerating for T {
         &mut self,
         new_profit_controller: AccountId,
     ) -> Result<(), SPGeneratingError> {
-        SPGeneratingStorage::get_mut(self).profit_controller = new_profit_controller;
+        SPGeneratingStorage::get_mut(self).shares_profit_controller_address = new_profit_controller;
         Ok(())
     }
 
@@ -59,8 +59,10 @@ impl<T: SPGeneratingStorage> SPGeneratingView for T {
         SPGeneratingStorage::get(self).generated_profit.clone()
     }
 
-    default fn get_profit_controller_address(&self) -> AccountId {
-        SPGeneratingStorage::get(self).profit_controller.clone()
+    default fn get_shares_profit_controller_address(&self) -> AccountId {
+        SPGeneratingStorage::get(self)
+            .shares_profit_controller_address
+            .clone()
     }
 
     // shares

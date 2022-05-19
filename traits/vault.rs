@@ -54,6 +54,11 @@ pub trait Vault {
     ) -> Result<(), VaultError>;
     #[ink(message)]
     fn set_oracle_address(&mut self, new_oracle_address: AccountId) -> Result<(), VaultError>;
+    #[ink(message)]
+    fn set_liquidator_address(
+        &mut self,
+        new_liquidator_address: AccountId,
+    ) -> Result<(), VaultError>;
 }
 
 #[brush::trait_definition]
@@ -70,6 +75,8 @@ pub trait VaultView {
     fn get_oracle_address(&self) -> AccountId;
     #[ink(message)]
     fn get_debt_ceiling(&self, vault_id: u128) -> Balance;
+    #[ink(message)]
+    fn get_liquidator_address(&self) -> AccountId;
 }
 pub trait VaultInternal {
     fn _emit_deposit_event(&self, _vault_id: u128, _current_collateral: Balance);
@@ -99,6 +106,7 @@ pub enum VaultError {
     VaultOwnership,
     CollateralBelowMinimum,
     CollateralAboveMinimum,
+    Liquidator,
     PSP22Error(PSP22Error),
     PSP34Error(PSP34Error),
     PausableError(PausableError),
