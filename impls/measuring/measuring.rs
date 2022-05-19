@@ -1,7 +1,7 @@
 pub use super::data::*;
 pub use crate::traits::measuring::*;
 pub use crate::traits::oracling::*;
-pub use crate::traits::stable_coin::*;
+pub use crate::traits::psp22_rated::*;
 use brush::contracts::ownable::*;
 use brush::contracts::pausable::*;
 use brush::modifiers;
@@ -43,6 +43,14 @@ impl<T: MeasuringStorage + PausableStorage + OwnableStorage> Measuring for T {
         Ok(MeasuringStorage::get(self).stability_measure)
     }
 
+    #[modifiers(only_owner)]
+    fn set_oracle_address(&mut self, new_oracle_address: AccountId) -> Result<(), MeasuringError> {
+        MeasuringStorage::get_mut(self).oracle_address = new_oracle_address;
+        Ok(())
+    }
+}
+
+impl<T: MeasuringStorage> MeasuringView for T {
     default fn get_stability_measure_parameter(&self) -> u8 {
         MeasuringStorage::get(self).stability_measure
     }
@@ -51,10 +59,8 @@ impl<T: MeasuringStorage + PausableStorage + OwnableStorage> Measuring for T {
         MeasuringStorage::get(self).ausd_usd_price_e6
     }
 
-    #[modifiers(only_owner)]
-    fn set_oracle_address(&mut self, new_oracle_address: AccountId) -> Result<(), MeasuringError> {
-        MeasuringStorage::get_mut(self).oracle_address = new_oracle_address;
-        Ok(())
+    default fn get_measurement_timestamp(&self) -> Timestamp {
+        MeasuringStorage::get(self).measurement_timestamp
     }
 
     fn get_oracle_address(&self) -> AccountId {

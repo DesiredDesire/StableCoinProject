@@ -4,10 +4,10 @@ use brush::{
 };
 
 #[brush::wrapper]
-pub type SPGeneratingContractRef = dyn SPGenerating + Ownable;
+pub type SPGeneratingContractRef = dyn SPGenerating + SPGeneratingView + Ownable;
 
 #[brush::wrapper]
-pub type SPGeneratingRef = dyn SPGenerating;
+pub type SPGeneratingRef = dyn SPGenerating + SPGeneratingView;
 
 #[brush::trait_definition]
 pub trait SPGenerating {
@@ -20,7 +20,7 @@ pub trait SPGenerating {
     fn give_profit(&mut self) -> Result<i128, SPGeneratingError>;
 
     #[ink(message)]
-    fn set_profit_controller_address(
+    fn set_shares_profit_controller_address(
         &mut self,
         new_profit_controller: AccountId,
     ) -> Result<(), SPGeneratingError>;
@@ -31,9 +31,13 @@ pub trait SPGenerating {
 
 #[brush::trait_definition]
 pub trait SPGeneratingView {
+    // profiting and shares
+    #[ink(message)]
+    fn get_sharing_part_e6(&self) -> u128;
+
     // profiting
     #[ink(message)]
-    fn amount_to_collect(&self) -> i128;
+    fn get_generated_profit(&self) -> i128;
 
     #[ink(message)]
     fn get_profit_controller_address(&self) -> AccountId;

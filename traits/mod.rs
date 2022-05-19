@@ -10,7 +10,6 @@ pub mod price_feeding;
 pub mod psp22_rated;
 pub mod shares_profit_controlling;
 pub mod shares_profit_generating;
-pub mod stable_coin;
 pub mod stable_controlling;
 pub mod vault;
 pub mod vault_controlling;

@@ -22,6 +22,7 @@ pub mod lending {
     impl Ownable for MeasurerContract {}
 
     impl Measuring for MeasurerContract {}
+    impl MeasuringView for MeasurerContract {}
 
     impl MeasurerContract {
         /// constructor with name and symbol

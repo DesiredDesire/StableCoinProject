@@ -33,7 +33,7 @@ impl<T: SPGeneratingStorage + OwnableStorage> SPGenerating for T {
     }
 
     #[modifiers(only_owner)]
-    default fn set_profit_controller_address(
+    default fn set_shares_profit_controller_address(
         &mut self,
         new_profit_controller: AccountId,
     ) -> Result<(), SPGeneratingError> {
@@ -50,8 +50,12 @@ impl<T: SPGeneratingStorage + OwnableStorage> SPGenerating for T {
 }
 
 impl<T: SPGeneratingStorage> SPGeneratingView for T {
+    // profiting and shares
+    default fn get_sharing_part_e6(&self) -> u128 {
+        SPGeneratingStorage::get(self).sharing_part_e6.clone()
+    }
     // profiting
-    default fn amount_to_collect(&self) -> i128 {
+    default fn get_generated_profit(&self) -> i128 {
         SPGeneratingStorage::get(self).generated_profit.clone()
     }
 

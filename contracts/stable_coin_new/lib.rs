@@ -30,10 +30,11 @@ pub mod stable_coin {
     const E6: u128 = 10_u128.pow(6);
     const E12: u128 = 10_u128.pow(12);
 
-    const MINTER: RoleType = ink_lang::selector_id!("MINTER");
-    const BURNER: RoleType = ink_lang::selector_id!("BURNER");
+    // const MINTER: RoleType = ink_lang::selector_id!("MINTER");
+    // const BURNER: RoleType = ink_lang::selector_id!("BURNER");
+    const EMITTER: RoleType = ink_lang::selector_id!("EMITTER");
     // const SETTER: RoleType = ink_lang::selector_id!("SETTER"); // for now we use owner
-    const VAULT: RoleType = ink_lang::selector_id!("VAULT");
+    // const VAULT: RoleType = ink_lang::selector_id!("VAULT");
 
     #[ink(storage)]
     #[derive(
@@ -179,9 +180,11 @@ pub mod stable_coin {
         }
     }
 
+    impl SPGenerating for StableCoinContract {}
+
     impl PSP22Mintable for StableCoinContract {
         #[ink(message)]
-        #[modifiers(only_role(MINTER))]
+        #[modifiers(only_role(EMITTER))]
         #[modifiers(when_not_paused)]
         fn mint(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
             self._mint(account, amount)
@@ -190,7 +193,7 @@ pub mod stable_coin {
 
     impl PSP22Burnable for StableCoinContract {
         #[ink(message)]
-        #[modifiers(only_role(BURNER))]
+        #[modifiers(only_role(EMITTER))]
         fn burn(&mut self, account: AccountId, amount: Balance) -> Result<(), PSP22Error> {
             self._burn_from(account, amount)
         }
@@ -412,7 +415,7 @@ pub mod stable_coin {
         }
 
         #[ink(message)]
-        #[modifiers(only_role(VAULT))]
+        #[modifiers(only_role(EMITTER))]
         fn add_account_debt(
             &mut self,
             account: AccountId,
@@ -424,7 +427,7 @@ pub mod stable_coin {
         }
 
         #[ink(message)]
-        #[modifiers(only_role(VAULT))]
+        #[modifiers(only_role(EMITTER))]
         fn sub_account_debt(
             &mut self,
             account: AccountId,

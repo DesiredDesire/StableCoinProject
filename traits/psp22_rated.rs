@@ -4,7 +4,7 @@ use brush::{
 };
 
 #[brush::wrapper]
-pub type PSP22RatedRef = dyn PSP22Rated + PSP22;
+pub type PSP22RatedRef = dyn PSP22Rated + PSP22 + PSP22RatedView;
 
 #[brush::trait_definition]
 pub trait PSP22Rated {

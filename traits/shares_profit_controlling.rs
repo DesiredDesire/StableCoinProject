@@ -8,10 +8,10 @@ use super::shares_profit_generating::SPGeneratingError;
 
 /// Combination of all traits of the contract to simplify calls to the contract
 #[brush::wrapper]
-pub type SPControllingContractRef = dyn SPControlling + Ownable;
+pub type SPControllingContractRef = dyn SPControlling + Ownable + SPControllingView;
 
 #[brush::wrapper]
-pub type PControllingRef = dyn SPControlling;
+pub type PControllingRef = dyn SPControlling + SPControllingView;
 
 #[brush::trait_definition]
 pub trait SPControlling {
@@ -51,10 +51,19 @@ pub trait SPControlling {
 #[brush::trait_definition]
 pub trait SPControllingView {
     #[ink(message)]
+    fn get_stable_coin_address(&self) -> AccountId;
+
+    #[ink(message)]
+    fn is_generator(&self, account: AccountId) -> bool;
+
+    #[ink(message)]
     fn get_total_profit(&self) -> i128;
 
     #[ink(message)]
     fn get_treassury_address(&self) -> AccountId;
+
+    #[ink(message)]
+    fn get_treassury_part_e6(&self) -> u128;
 }
 
 pub trait SPControllingInternal {}

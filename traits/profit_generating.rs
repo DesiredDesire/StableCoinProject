@@ -5,10 +5,10 @@ use brush::{
 
 /// Combination of all traits of the contract to simplify calls to the contract
 #[brush::wrapper]
-pub type PGeneratingContractRef = dyn PGenerating + Ownable;
+pub type PGeneratingContractRef = dyn PGenerating + PGeneratingView + Ownable;
 
 #[brush::wrapper]
-pub type PGeneratingRef = dyn PGenerating;
+pub type PGeneratingRef = dyn PGenerating + PGeneratingView;
 
 #[brush::trait_definition]
 pub trait PGenerating {
@@ -16,7 +16,7 @@ pub trait PGenerating {
     fn give_profit(&mut self) -> Result<i128, PGeneratingError>;
 
     #[ink(message)]
-    fn set_profit_controller_address(
+    fn set_shares_profit_controller_address(
         &mut self,
         new_profit_controller: AccountId,
     ) -> Result<(), PGeneratingError>;
@@ -25,7 +25,7 @@ pub trait PGenerating {
 #[brush::trait_definition]
 pub trait PGeneratingView {
     #[ink(message)]
-    fn amount_to_collect(&self) -> i128;
+    fn get_generated_profit(&self) -> i128;
 
     #[ink(message)]
     fn get_profit_controller_address(&self) -> AccountId;

@@ -18,6 +18,7 @@ pub mod vault {
     use stable_coin_project::impls::pausing::*;
     use stable_coin_project::impls::shares_profit_generating::*;
     use stable_coin_project::traits::oracling::OraclingRef;
+    use stable_coin_project::traits::psp22_rated::PSP22RatedRef;
     use stable_coin_project::traits::vault::*;
 
     // const U128MAX: u128 = 340282366920938463463374607431768211455;
@@ -93,6 +94,7 @@ pub mod vault {
     impl VaultContract {
         #[ink(constructor)]
         pub fn new(
+            oracle_address: AccountId,
             shares_token_address: AccountId,
             collateral_token_address: AccountId,
             stable_token_address: AccountId,
@@ -102,6 +104,7 @@ pub mod vault {
             owner: AccountId,
         ) -> Self {
             ink_lang::codegen::initialize_contract(|instance: &mut VaultContract| {
+                instance.oracle_address = oracle_address;
                 instance.collateral.collateral_token_address = collateral_token_address;
                 instance.emit.emited_token_address = stable_token_address;
                 instance.spgenerate.shares_token_address = shares_token_address;
@@ -127,17 +130,6 @@ pub mod vault {
             value: Vec<u8>,
         ) -> Result<(), VaultError> {
             self._set_attribute(id, key, value)?;
-            Ok(())
-        }
-
-        //TODO move it
-        #[ink(message)]
-        #[modifiers(only_owner)]
-        pub fn set_oracle_address(
-            &mut self,
-            new_oracle_address: AccountId,
-        ) -> Result<(), VaultError> {
-            self.oracle_address = new_oracle_address;
             Ok(())
         }
     }
@@ -263,7 +255,7 @@ pub mod vault {
                 "check_undercollateralize debt {}",
                 self._get_debt_by_id(&vault_id)
             );
-            let vault_debt = self._update_vault_debt(vault_id);
+            let vault_debt = self._update_vault_debt(vault_id)?;
             let collateral_after = vault_collateral - amount;
             ink_env::debug_println!("check_undercollateralize3 {}", vault_debt);
             if vault_debt * self.current_minimum_collateral_coefficient_e6
@@ -301,7 +293,7 @@ pub mod vault {
 
             // check if after borrow vault is not undercollaterized
             let debt_ceiling: Balance = self._get_debt_ceiling(vault_id);
-            let debt = self._update_vault_debt(vault_id);
+            let debt = self._update_vault_debt(vault_id)?;
             if debt + amount > debt_ceiling {
                 return Err(VaultError::CollateralBelowMinimum);
             }
@@ -326,7 +318,7 @@ pub mod vault {
             if self.env().caller() != vault_owner {
                 return Err(VaultError::VaultOwnership);
             }
-            let debt = self._update_vault_debt(vault_id);
+            let debt = self._update_vault_debt(vault_id)?;
             if amount >= debt {
                 self._burn_emited_token(vault_owner, debt)?;
                 self.debt_by_id.insert(&vault_id, &(0));
@@ -358,13 +350,13 @@ pub mod vault {
 
             //check if debt_ceiling >= debt, if it is return, else continiue and buy risky vault
             let debt_ceiling: Balance = self._get_debt_ceiling(vault_id);
-            let debt = self._update_vault_debt(vault_id);
+            let debt = self._update_vault_debt(vault_id)?;
             if debt_ceiling >= debt {
                 return Err(VaultError::CollateralAboveMinimum);
             }
 
             // regulating vault so it is not undercollaterized
-            self._burn_emited_token(caller, minimum_to_pay)?;
+            self._burn_emited_token(caller, debt)?;
             self.debt_by_id.insert(&vault_id, &(0));
             PSP22RatedRef::sub_account_debt(&self.emit.emited_token_address, vault_owner, debt)?;
             self.total_debt -= debt;
@@ -410,11 +402,19 @@ pub mod vault {
 
         #[ink(message)]
         #[modifiers(only_owner)]
-        fn set_controller_address(
+        fn set_vault_controller_address(
             &mut self,
             controller_address: AccountId,
         ) -> Result<(), VaultError> {
             self.controller_address = controller_address;
+            Ok(())
+        }
+
+        //TODO move it
+        #[ink(message)]
+        #[modifiers(only_owner)]
+        fn set_oracle_address(&mut self, new_oracle_address: AccountId) -> Result<(), VaultError> {
+            self.oracle_address = new_oracle_address;
             Ok(())
         }
     }
@@ -448,7 +448,7 @@ pub mod vault {
         }
 
         #[ink(message)]
-        fn get_controller_address(&self) -> AccountId {
+        fn get_vault_controller_address(&self) -> AccountId {
             self.controller_address
         }
 
@@ -516,7 +516,7 @@ pub mod vault {
         // return maximal debt for a vault
         fn _get_debt_ceiling(&self, vault_id: u128) -> Balance {
             ink_env::debug_println!("_get_debt_ceiling:");
-            let debt_ceiling = self._vault_collateral_value_e6(vault_id) * 1000000
+            let debt_ceiling = self._vault_collateral_value_e6(vault_id) * E6
                 / self.current_minimum_collateral_coefficient_e6;
             debt_ceiling
         }
@@ -536,7 +536,7 @@ pub mod vault {
         }
 
         // updates current interest coefficient, updates vaults debt and increments stored interest
-        fn _update_vault_debt(&mut self, vault_id: u128) -> Balance {
+        fn _update_vault_debt(&mut self, vault_id: u128) -> Result<Balance, VaultError> {
             // get state
             let current_interest_coefficient_e12 = self._update_current_interest_coefficient_e12();
             let last_interest_coefficient_e12 =
@@ -582,7 +582,7 @@ pub mod vault {
             self.last_interest_coefficient_by_id_e12
                 .insert(&vault_id, &current_interest_coefficient_e12);
 
-            updated_debt
+            Ok(updated_debt)
         }
 
         // calculates, updates and returns current interest coefficient
@@ -745,7 +745,7 @@ pub mod vault {
 
             assert_eq!(vault.get_collateral_token_address(), accounts.bob);
             assert_eq!(vault.get_emited_token_address(), accounts.charlie);
-            assert_eq!(vault.get_controller_address(), accounts.alice);
+            assert_eq!(vault.get_vault_controller_address(), accounts.alice);
         }
     }
 }

@@ -32,13 +32,13 @@ impl<T: SPControllingStorage + OwnableStorage> SPControlling for T {
             return Err(SPControllingError::NoProfit);
         }
         SPControllingStorage::get_mut(self).total_profit = 0;
-        let shares_address: AccountId = SPControllingStorage::get(self).shares_address;
+        let stable_coin_address: AccountId = SPControllingStorage::get(self).stable_coin_address;
         let treassuty_address: AccountId = SPControllingStorage::get(self).treassury_address;
         let treassury_part_e6: u128 = SPControllingStorage::get(self).treassury_part_e6;
         let treassury_profit: u128 = profit as u128 * treassury_part_e6 / E6;
         let owner: AccountId = OwnableStorage::get(self).owner;
         PSP22Ref::transfer_builder(
-            &shares_address,
+            &stable_coin_address,
             treassuty_address,
             treassury_profit,
             Vec::<u8>::new(),
@@ -47,7 +47,7 @@ impl<T: SPControllingStorage + OwnableStorage> SPControlling for T {
         .fire()
         .unwrap()?;
         PSP22Ref::transfer_builder(
-            &shares_address,
+            &stable_coin_address,
             owner,
             profit as u128 - treassury_profit,
             Vec::<u8>::new(),
@@ -110,11 +110,26 @@ impl<T: SPControllingStorage + OwnableStorage> SPControlling for T {
 }
 
 impl<T: SPControllingStorage> SPControllingView for T {
+    default fn get_stable_coin_address(&self) -> AccountId {
+        SPControllingStorage::get(self).stable_coin_address.clone()
+    }
+
+    default fn is_generator(&self, account: AccountId) -> bool {
+        SPControllingStorage::get(self)
+            .is_generator
+            .get(&account)
+            .unwrap_or(false) //TODO make it internal function
+    }
+
     default fn get_total_profit(&self) -> i128 {
         SPControllingStorage::get(self).total_profit.clone()
     }
 
     default fn get_treassury_address(&self) -> AccountId {
         SPControllingStorage::get(self).treassury_address.clone()
+    }
+
+    default fn get_treassury_part_e6(&self) -> u128 {
+        SPControllingStorage::get(self).treassury_part_e6.clone()
     }
 }

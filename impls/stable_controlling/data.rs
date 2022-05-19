@@ -15,7 +15,7 @@ use ink_storage::traits::StorageLayout;
 /// this will isolate the logic of our smart contract from its storage
 pub struct SControllingData {
     // immutables
-    pub stable_address: AccountId,
+    pub stable_coin_address: AccountId,
 
     // mutables_external
     pub measurer_address: AccountId,
